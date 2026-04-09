@@ -37,6 +37,12 @@ pub async fn run(
 
     // Main loop
     loop {
+        // Force full redraw if needed (e.g. after external editor)
+        if app.needs_redraw {
+            terminal.clear()?;
+            app.needs_redraw = false;
+        }
+
         // Draw
         terminal.draw(|frame| {
             app.draw(frame);

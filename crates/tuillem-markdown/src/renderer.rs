@@ -12,6 +12,7 @@ pub struct MdRenderer {
     code_fg: Color,
     blockquote_color: Color,
     border_color: Color,
+    max_width: usize,
 }
 
 impl MdRenderer {
@@ -24,7 +25,13 @@ impl MdRenderer {
             code_fg: Color::Rgb(205, 214, 244),
             blockquote_color: Color::Rgb(108, 112, 134),
             border_color: Color::Rgb(69, 71, 90),
+            max_width: 0, // 0 = no limit
         }
+    }
+
+    pub fn with_max_width(mut self, width: usize) -> Self {
+        self.max_width = width;
+        self
     }
 
     pub fn render(&self, elements: &[MdElement]) -> Text<'static> {
@@ -187,7 +194,7 @@ impl MdRenderer {
 
         let num_cols = headers.len();
 
-        // Measure column widths
+        // Measure natural column widths
         let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
         for row in rows {
             for (i, cell) in row.iter().enumerate() {
@@ -195,6 +202,16 @@ impl MdRenderer {
                     widths[i] = widths[i].max(cell.len());
                 }
             }
+        }
+
+        // Total width: sum of (col_width + 2 padding) + (num_cols + 1) borders
+        let total_width: usize =
+            widths.iter().sum::<usize>() + 2 * num_cols + num_cols + 1;
+
+        // If table is too wide, use compact card layout instead
+        if self.max_width > 0 && total_width > self.max_width {
+            self.render_table_compact(lines, headers, rows);
+            return;
         }
 
         let border_style = Style::default().fg(self.border_color);
@@ -261,6 +278,35 @@ impl MdRenderer {
         }
         bottom.push('┘');
         lines.push(Line::from(Span::styled(bottom, border_style)));
+    }
+
+    /// Render a table in compact card layout when it's too wide for the terminal.
+    /// Each row becomes a card with "header: value" pairs.
+    fn render_table_compact(
+        &self,
+        lines: &mut Vec<Line<'static>>,
+        headers: &[String],
+        rows: &[Vec<String>],
+    ) {
+        let border_style = Style::default().fg(self.border_color);
+        let label_style = Style::default().add_modifier(Modifier::BOLD);
+
+        for (row_idx, row) in rows.iter().enumerate() {
+            // Row separator
+            if row_idx > 0 {
+                lines.push(Line::from(Span::styled(
+                    "  ─ ─ ─".to_string(),
+                    border_style,
+                )));
+            }
+            for (i, cell) in row.iter().enumerate() {
+                let header = headers.get(i).map(|s| s.as_str()).unwrap_or("?");
+                lines.push(Line::from(vec![
+                    Span::styled(format!("  {}: ", header), label_style),
+                    Span::raw(cell.clone()),
+                ]));
+            }
+        }
     }
 
     fn inline_to_spans(&self, inlines: &[InlineElement]) -> Vec<Span<'static>> {

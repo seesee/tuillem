@@ -5,17 +5,21 @@ pub mod renderer;
 use ratatui::text::Text;
 
 pub fn render_markdown(markdown: &str) -> Text<'static> {
+    render_markdown_width(markdown, 0)
+}
+
+/// Render markdown with a maximum width hint for table layout.
+pub fn render_markdown_width(markdown: &str, max_width: usize) -> Text<'static> {
     let elements = parser::parse(markdown);
-    let renderer = renderer::MdRenderer::new();
+    let renderer = renderer::MdRenderer::new().with_max_width(max_width);
     renderer.render(&elements)
 }
 
 /// Render streaming markdown safely. Detects incomplete tables/code blocks
 /// and renders the incomplete tail as plain text to avoid broken output.
-pub fn render_markdown_streaming(markdown: &str) -> Text<'static> {
-    // Find the last complete section and render incomplete parts as plain text
+pub fn render_markdown_streaming(markdown: &str, max_width: usize) -> Text<'static> {
     let (complete, incomplete) = split_incomplete_blocks(markdown);
-    let mut text = render_markdown(complete);
+    let mut text = render_markdown_width(complete, max_width);
     if !incomplete.is_empty() {
         for line in incomplete.lines() {
             text.lines.push(ratatui::text::Line::from(line.to_string()));

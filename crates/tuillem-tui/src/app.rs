@@ -50,6 +50,7 @@ pub struct App {
     pub editor_command: String,
     pub popup: Option<SelectionPopup>,
     pub available_models: Vec<(String, Vec<String>)>, // (provider_name, [model_ids])
+    pub needs_redraw: bool,
 }
 
 impl App {
@@ -72,6 +73,7 @@ impl App {
             editor_command,
             popup: None,
             available_models,
+            needs_redraw: false,
         }
     }
 
@@ -566,6 +568,9 @@ impl App {
         // Restore terminal
         let _ = execute!(std::io::stdout(), EnterAlternateScreen);
         let _ = enable_raw_mode();
+
+        // Force a full redraw on next frame
+        self.needs_redraw = true;
 
         // Read back content if editor succeeded
         if let Ok(exit) = status
