@@ -15,6 +15,9 @@ use crate::theme::Theme;
 pub struct Conversation {
     pub scroll_offset: u16,
     pub expanded_thinking: HashSet<usize>,
+    pub total_lines: u16,
+    pub visible_height: u16,
+    pub auto_scroll: bool,
 }
 
 impl Conversation {
@@ -22,12 +25,15 @@ impl Conversation {
         Self {
             scroll_offset: 0,
             expanded_thinking: HashSet::new(),
+            total_lines: 0,
+            visible_height: 0,
+            auto_scroll: true,
         }
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn render(
-        &self,
+        &mut self,
         frame: &mut Frame,
         area: Rect,
         messages: &[MessageView],
@@ -161,6 +167,14 @@ impl Conversation {
             )));
         }
 
+        self.total_lines = lines.len() as u16;
+        self.visible_height = area.height;
+
+        // Auto-scroll to bottom when new content arrives
+        if self.auto_scroll {
+            self.scroll_offset = self.total_lines.saturating_sub(self.visible_height);
+        }
+
         let text = Text::from(lines);
         let paragraph = Paragraph::new(text)
             .style(Style::default().fg(theme.fg).bg(theme.bg))
@@ -171,15 +185,19 @@ impl Conversation {
 
     pub fn scroll_up(&mut self, amount: u16) {
         self.scroll_offset = self.scroll_offset.saturating_sub(amount);
+        self.auto_scroll = false;
     }
 
     pub fn scroll_down(&mut self, amount: u16) {
         self.scroll_offset = self.scroll_offset.saturating_add(amount);
+        // Re-enable auto-scroll if we're at or near the bottom
+        if self.scroll_offset >= self.total_lines.saturating_sub(self.visible_height) {
+            self.auto_scroll = true;
+        }
     }
 
     pub fn scroll_to_bottom(&mut self) {
-        // Set to a large value; the widget will clamp it
-        self.scroll_offset = u16::MAX / 2;
+        self.auto_scroll = true;
     }
 
     pub fn toggle_thinking(&mut self, message_index: usize) {
