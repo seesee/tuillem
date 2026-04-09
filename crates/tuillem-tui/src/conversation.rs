@@ -146,9 +146,22 @@ impl Conversation {
                     }
                 } else {
                     // Assistant messages: left-aligned, rendered as markdown
-                    // The markdown renderer handles table widths and wrapping internally
                     let rendered = tuillem_markdown::render_markdown_width(content, content_width);
                     for line in rendered.lines {
+                        // Skip wrapping for table/border lines — renderer handles those
+                        let first_char = line.spans.first().map(|s| s.content.chars().next());
+                        let is_table = matches!(first_char, Some(Some('│' | '┌' | '├' | '└' | '─')));
+                        if !is_table && content_width > 0 {
+                            let line_chars: usize = line.spans.iter().map(|s| s.content.chars().count()).sum();
+                            if line_chars > content_width {
+                                let full_text: String = line.spans.iter().map(|s| s.content.to_string()).collect();
+                                let style = if line.spans.is_empty() { Style::default() } else { line.spans[0].style };
+                                for wrapped in wrap_text(&full_text, content_width) {
+                                    lines.push(Line::from(Span::styled(wrapped, style)));
+                                }
+                                continue;
+                            }
+                        }
                         lines.push(line);
                     }
                 }
@@ -193,6 +206,19 @@ impl Conversation {
                 // Render and wrap streaming text (handles incomplete tables/code blocks)
                 let rendered = tuillem_markdown::render_markdown_streaming(streaming_text, content_width);
                 for line in rendered.lines {
+                    let first_char = line.spans.first().map(|s| s.content.chars().next());
+                    let is_table = matches!(first_char, Some(Some('│' | '┌' | '├' | '└' | '─')));
+                    if !is_table && content_width > 0 {
+                        let line_chars: usize = line.spans.iter().map(|s| s.content.chars().count()).sum();
+                        if line_chars > content_width {
+                            let full_text: String = line.spans.iter().map(|s| s.content.to_string()).collect();
+                            let style = if line.spans.is_empty() { Style::default() } else { line.spans[0].style };
+                            for wrapped in wrap_text(&full_text, content_width) {
+                                lines.push(Line::from(Span::styled(wrapped, style)));
+                            }
+                            continue;
+                        }
+                    }
                     lines.push(line);
                 }
             }
