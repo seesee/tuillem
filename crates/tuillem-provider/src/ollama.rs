@@ -1,8 +1,10 @@
 use async_trait::async_trait;
-use futures::StreamExt;
 use reqwest::Client;
 
-use crate::{ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta};
+use crate::{
+    ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta,
+    buffered_sse_stream,
+};
 
 pub struct OllamaProvider {
     client: Client,
@@ -72,56 +74,7 @@ impl Provider for OllamaProvider {
         // Ollama uses newline-delimited JSON (not SSE).
         let stream = response.bytes_stream();
 
-        let mapped = stream
-            .map(|chunk| {
-                let chunk = chunk.map_err(ProviderError::Http)?;
-                let text = String::from_utf8_lossy(&chunk);
-                let mut deltas = Vec::new();
-
-                for line in text.lines() {
-                    let line = line.trim();
-                    if line.is_empty() {
-                        continue;
-                    }
-                    if let Ok(obj) = serde_json::from_str::<serde_json::Value>(line) {
-                        // Check if done
-                        let done = obj.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
-
-                        // Extract message content
-                        if let Some(message) = obj.get("message")
-                            && let Some(content) = message.get("content").and_then(|c| c.as_str())
-                            && !content.is_empty()
-                        {
-                            deltas.push(StreamDelta::Text(content.to_string()));
-                        }
-
-                        if done {
-                            // Extract usage if present
-                            if let (Some(prompt), Some(eval)) = (
-                                obj.get("prompt_eval_count").and_then(|v| v.as_u64()),
-                                obj.get("eval_count").and_then(|v| v.as_u64()),
-                            ) {
-                                deltas.push(StreamDelta::Usage {
-                                    input_tokens: prompt,
-                                    output_tokens: eval,
-                                });
-                            }
-                            deltas.push(StreamDelta::Done);
-                        }
-                    }
-                }
-
-                Ok(deltas)
-            })
-            .flat_map(|result: Result<Vec<StreamDelta>, ProviderError>| {
-                let items: Vec<Result<StreamDelta, ProviderError>> = match result {
-                    Ok(deltas) => deltas.into_iter().map(Ok).collect(),
-                    Err(e) => vec![Err(e)],
-                };
-                futures::stream::iter(items)
-            });
-
-        Ok(Box::pin(mapped))
+        Ok(buffered_sse_stream(stream, parse_ollama_line))
     }
 
     fn models(&self) -> Vec<ModelInfo> {
@@ -140,4 +93,37 @@ impl Provider for OllamaProvider {
     fn name(&self) -> &str {
         "ollama"
     }
+}
+
+fn parse_ollama_line(line: &str) -> Vec<StreamDelta> {
+    let mut deltas = Vec::new();
+    let line = line.trim();
+    if line.is_empty() {
+        return deltas;
+    }
+    let Ok(obj) = serde_json::from_str::<serde_json::Value>(line) else {
+        return deltas;
+    };
+    let done = obj.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
+
+    if let Some(message) = obj.get("message")
+        && let Some(content) = message.get("content").and_then(|c| c.as_str())
+        && !content.is_empty()
+    {
+        deltas.push(StreamDelta::Text(content.to_string()));
+    }
+
+    if done {
+        if let (Some(prompt), Some(eval)) = (
+            obj.get("prompt_eval_count").and_then(|v| v.as_u64()),
+            obj.get("eval_count").and_then(|v| v.as_u64()),
+        ) {
+            deltas.push(StreamDelta::Usage {
+                input_tokens: prompt,
+                output_tokens: eval,
+            });
+        }
+        deltas.push(StreamDelta::Done);
+    }
+    deltas
 }

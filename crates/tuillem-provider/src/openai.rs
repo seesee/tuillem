@@ -1,8 +1,10 @@
 use async_trait::async_trait;
-use futures::StreamExt;
 use reqwest::Client;
 
-use crate::{ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta};
+use crate::{
+    ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta,
+    buffered_sse_stream,
+};
 
 pub struct OpenAiProvider {
     provider_name: String,
@@ -79,69 +81,7 @@ impl Provider for OpenAiProvider {
 
         let stream = response.bytes_stream();
 
-        let mapped = stream
-            .map(|chunk| {
-                let chunk = chunk.map_err(ProviderError::Http)?;
-                let text = String::from_utf8_lossy(&chunk);
-                let mut deltas = Vec::new();
-
-                for line in text.lines() {
-                    if let Some(data) = line.strip_prefix("data: ") {
-                        if data == "[DONE]" {
-                            deltas.push(StreamDelta::Done);
-                            continue;
-                        }
-                        if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
-                            if let Some(choices) = event.get("choices").and_then(|c| c.as_array())
-                                && let Some(choice) = choices.first()
-                            {
-                                if let Some(delta) = choice.get("delta")
-                                    && let Some(content) =
-                                        delta.get("content").and_then(|c| c.as_str())
-                                    && !content.is_empty()
-                                {
-                                    deltas.push(StreamDelta::Text(content.to_string()));
-                                }
-                                // Check for finish_reason
-                                if let Some(finish) =
-                                    choice.get("finish_reason").and_then(|f| f.as_str())
-                                    && finish == "stop"
-                                {
-                                    deltas.push(StreamDelta::Done);
-                                }
-                            }
-                            // Check for usage in the event
-                            if let Some(usage) = event.get("usage") {
-                                let input = usage
-                                    .get("prompt_tokens")
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(0);
-                                let output = usage
-                                    .get("completion_tokens")
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(0);
-                                if input > 0 || output > 0 {
-                                    deltas.push(StreamDelta::Usage {
-                                        input_tokens: input,
-                                        output_tokens: output,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Ok(deltas)
-            })
-            .flat_map(|result: Result<Vec<StreamDelta>, ProviderError>| {
-                let items: Vec<Result<StreamDelta, ProviderError>> = match result {
-                    Ok(deltas) => deltas.into_iter().map(Ok).collect(),
-                    Err(e) => vec![Err(e)],
-                };
-                futures::stream::iter(items)
-            });
-
-        Ok(Box::pin(mapped))
+        Ok(buffered_sse_stream(stream, parse_openai_line))
     }
 
     fn models(&self) -> Vec<ModelInfo> {
@@ -160,4 +100,50 @@ impl Provider for OpenAiProvider {
     fn name(&self) -> &str {
         &self.provider_name
     }
+}
+
+fn parse_openai_line(line: &str) -> Vec<StreamDelta> {
+    let mut deltas = Vec::new();
+    let Some(data) = line.strip_prefix("data: ") else {
+        return deltas;
+    };
+    if data == "[DONE]" {
+        deltas.push(StreamDelta::Done);
+        return deltas;
+    }
+    let Ok(event) = serde_json::from_str::<serde_json::Value>(data) else {
+        return deltas;
+    };
+    if let Some(choices) = event.get("choices").and_then(|c| c.as_array())
+        && let Some(choice) = choices.first()
+    {
+        if let Some(delta) = choice.get("delta")
+            && let Some(content) = delta.get("content").and_then(|c| c.as_str())
+            && !content.is_empty()
+        {
+            deltas.push(StreamDelta::Text(content.to_string()));
+        }
+        if let Some(finish) = choice.get("finish_reason").and_then(|f| f.as_str())
+            && finish == "stop"
+        {
+            deltas.push(StreamDelta::Done);
+        }
+    }
+    if let Some(usage) = event.get("usage") {
+        let input = usage
+            .get("prompt_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let output = usage
+            .get("completion_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        if input > 0 || output > 0 {
+            deltas.push(StreamDelta::Usage {
+                input_tokens: input,
+                output_tokens: output,
+            });
+        }
+    }
+    deltas
 }

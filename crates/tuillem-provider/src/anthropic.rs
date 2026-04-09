@@ -1,8 +1,10 @@
 use async_trait::async_trait;
-use futures::StreamExt;
 use reqwest::Client;
 
-use crate::{ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta};
+use crate::{
+    ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta,
+    buffered_sse_stream,
+};
 
 pub struct AnthropicProvider {
     client: Client,
@@ -71,82 +73,7 @@ impl Provider for AnthropicProvider {
 
         let stream = response.bytes_stream();
 
-        let mapped = stream
-            .map(|chunk| {
-                let chunk = chunk.map_err(ProviderError::Http)?;
-                let text = String::from_utf8_lossy(&chunk);
-                let mut deltas = Vec::new();
-
-                for line in text.lines() {
-                    if let Some(data) = line.strip_prefix("data: ") {
-                        if data == "[DONE]" {
-                            deltas.push(StreamDelta::Done);
-                            continue;
-                        }
-                        if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
-                            let event_type = event.get("type").and_then(|t| t.as_str());
-                            match event_type {
-                                Some("content_block_delta") => {
-                                    if let Some(delta) = event.get("delta") {
-                                        let delta_type = delta.get("type").and_then(|t| t.as_str());
-                                        match delta_type {
-                                            Some("text_delta") => {
-                                                if let Some(text) =
-                                                    delta.get("text").and_then(|t| t.as_str())
-                                                {
-                                                    deltas
-                                                        .push(StreamDelta::Text(text.to_string()));
-                                                }
-                                            }
-                                            Some("thinking_delta") => {
-                                                if let Some(thinking) =
-                                                    delta.get("thinking").and_then(|t| t.as_str())
-                                                {
-                                                    deltas.push(StreamDelta::Thinking(
-                                                        thinking.to_string(),
-                                                    ));
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-                                }
-                                Some("message_delta") => {
-                                    if let Some(usage) = event.get("usage") {
-                                        let input = usage
-                                            .get("input_tokens")
-                                            .and_then(|v| v.as_u64())
-                                            .unwrap_or(0);
-                                        let output = usage
-                                            .get("output_tokens")
-                                            .and_then(|v| v.as_u64())
-                                            .unwrap_or(0);
-                                        deltas.push(StreamDelta::Usage {
-                                            input_tokens: input,
-                                            output_tokens: output,
-                                        });
-                                    }
-                                }
-                                Some("message_stop") => {
-                                    deltas.push(StreamDelta::Done);
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                }
-
-                Ok(deltas)
-            })
-            .flat_map(|result: Result<Vec<StreamDelta>, ProviderError>| {
-                let items: Vec<Result<StreamDelta, ProviderError>> = match result {
-                    Ok(deltas) => deltas.into_iter().map(Ok).collect(),
-                    Err(e) => vec![Err(e)],
-                };
-                futures::stream::iter(items)
-            });
-
-        Ok(Box::pin(mapped))
+        Ok(buffered_sse_stream(stream, parse_anthropic_line))
     }
 
     fn models(&self) -> Vec<ModelInfo> {
@@ -165,4 +92,60 @@ impl Provider for AnthropicProvider {
     fn name(&self) -> &str {
         "anthropic"
     }
+}
+
+fn parse_anthropic_line(line: &str) -> Vec<StreamDelta> {
+    let mut deltas = Vec::new();
+    let Some(data) = line.strip_prefix("data: ") else {
+        return deltas;
+    };
+    if data == "[DONE]" {
+        deltas.push(StreamDelta::Done);
+        return deltas;
+    }
+    let Ok(event) = serde_json::from_str::<serde_json::Value>(data) else {
+        return deltas;
+    };
+    let event_type = event.get("type").and_then(|t| t.as_str());
+    match event_type {
+        Some("content_block_delta") => {
+            if let Some(delta) = event.get("delta") {
+                let delta_type = delta.get("type").and_then(|t| t.as_str());
+                match delta_type {
+                    Some("text_delta") => {
+                        if let Some(text) = delta.get("text").and_then(|t| t.as_str()) {
+                            deltas.push(StreamDelta::Text(text.to_string()));
+                        }
+                    }
+                    Some("thinking_delta") => {
+                        if let Some(thinking) = delta.get("thinking").and_then(|t| t.as_str()) {
+                            deltas.push(StreamDelta::Thinking(thinking.to_string()));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Some("message_delta") => {
+            if let Some(usage) = event.get("usage") {
+                let input = usage
+                    .get("input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let output = usage
+                    .get("output_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                deltas.push(StreamDelta::Usage {
+                    input_tokens: input,
+                    output_tokens: output,
+                });
+            }
+        }
+        Some("message_stop") => {
+            deltas.push(StreamDelta::Done);
+        }
+        _ => {}
+    }
+    deltas
 }

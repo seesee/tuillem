@@ -3,9 +3,11 @@ pub mod ollama;
 pub mod openai;
 
 use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use futures::Stream;
+use pin_project_lite::pin_project;
 use serde::{Deserialize, Serialize};
 use tuillem_config::{ProviderConfig, ProviderType};
 
@@ -153,6 +155,108 @@ pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn Provider>, Pro
             )))
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Buffered SSE stream helper
+// ---------------------------------------------------------------------------
+
+pin_project! {
+    /// Wraps a raw byte stream and buffers incomplete lines across chunk boundaries.
+    /// Complete lines are passed to `parse_line` which returns zero or more `StreamDelta`s.
+    struct BufferedSseStream<S, F> {
+        #[pin]
+        inner: S,
+        parse_line: F,
+        buffer: String,
+        pending: Vec<Result<StreamDelta, ProviderError>>,
+    }
+}
+
+impl<S, F> Stream for BufferedSseStream<S, F>
+where
+    S: Stream<Item = Result<bytes::Bytes, reqwest::Error>>,
+    F: Fn(&str) -> Vec<StreamDelta>,
+{
+    type Item = Result<StreamDelta, ProviderError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        // Drain any pending deltas first.
+        if let Some(item) = this.pending.pop() {
+            return Poll::Ready(Some(item));
+        }
+
+        loop {
+            match this.inner.as_mut().poll_next(cx) {
+                Poll::Ready(Some(Ok(bytes))) => {
+                    this.buffer.push_str(&String::from_utf8_lossy(&bytes));
+
+                    // Process all complete lines (split on '\n').
+                    while let Some(newline_pos) = this.buffer.find('\n') {
+                        let line: String = this.buffer.drain(..=newline_pos).collect();
+                        let line = line.trim_end_matches('\n').trim_end_matches('\r');
+                        if line.is_empty() {
+                            continue;
+                        }
+                        let deltas = (this.parse_line)(line);
+                        for d in deltas {
+                            this.pending.push(Ok(d));
+                        }
+                    }
+
+                    // Reverse so we can pop from the end in order.
+                    this.pending.reverse();
+
+                    if let Some(item) = this.pending.pop() {
+                        return Poll::Ready(Some(item));
+                    }
+                    // No complete lines yet — poll for more bytes.
+                    continue;
+                }
+                Poll::Ready(Some(Err(e))) => {
+                    return Poll::Ready(Some(Err(ProviderError::Http(e))));
+                }
+                Poll::Ready(None) => {
+                    // Stream ended — flush any remaining buffer content.
+                    if !this.buffer.is_empty() {
+                        let remaining = this.buffer.drain(..).collect::<String>();
+                        let line = remaining.trim();
+                        if !line.is_empty() {
+                            let deltas = (this.parse_line)(line);
+                            for d in deltas {
+                                this.pending.push(Ok(d));
+                            }
+                            this.pending.reverse();
+                            if let Some(item) = this.pending.pop() {
+                                return Poll::Ready(Some(item));
+                            }
+                        }
+                    }
+                    return Poll::Ready(None);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
+}
+
+/// Buffer SSE byte chunks into complete lines, yielding `StreamDelta`s.
+///
+/// `parse_line` converts a single complete line into zero or more `StreamDelta`s.
+/// Incomplete lines that span chunk boundaries are buffered until the next chunk
+/// arrives with the terminating newline.
+pub fn buffered_sse_stream(
+    byte_stream: impl Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Send + 'static,
+    parse_line: impl Fn(&str) -> Vec<StreamDelta> + Send + 'static,
+) -> ChatResponseStream {
+    Box::pin(BufferedSseStream {
+        inner: byte_stream,
+        parse_line,
+        buffer: String::new(),
+        pending: Vec::new(),
+    })
 }
 
 pub fn version() -> &'static str {
