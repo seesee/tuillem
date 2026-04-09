@@ -131,6 +131,15 @@ impl MdRenderer {
 
         let widths = compute_column_widths(&header_texts, &row_texts, num_cols, self.max_width);
 
+        // Verify: total rendered width must not exceed max_width
+        let total_rendered = widths.iter().sum::<usize>() + 3 * num_cols + 1;
+        if self.max_width > 0 && total_rendered > self.max_width {
+            tracing::warn!(
+                "Table width {} exceeds max {}! widths={:?} num_cols={} overhead={}",
+                total_rendered, self.max_width, widths, num_cols, 3 * num_cols + 1
+            );
+        }
+
         lines.push(Line::from(Span::styled(build_border("┌", "┬", "┐", &widths), border_style)));
         render_wrapped_row(lines, &header_texts, &widths, border_style, true);
         lines.push(Line::from(Span::styled(build_border("├", "┼", "┤", &widths), border_style)));
@@ -224,7 +233,12 @@ fn compute_column_widths(
     let budget = max_width - overhead;
 
     let total_natural: usize = natural.iter().sum();
+    tracing::debug!(
+        "Table: {} cols, natural={:?} (sum={}), max_width={}, overhead={}, budget={}",
+        num_cols, natural, total_natural, max_width, overhead, budget
+    );
     if total_natural <= budget {
+        tracing::debug!("Table fits naturally");
         return natural;
     }
 

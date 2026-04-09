@@ -2946,6 +2946,7 @@ dependencies = [
  "comrak",
  "ratatui",
  "syntect",
+ "tracing",
  "unicode-width",
 ]
 
