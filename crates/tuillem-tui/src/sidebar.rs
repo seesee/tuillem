@@ -135,8 +135,10 @@ impl Sidebar {
                     .as_deref()
                     .unwrap_or("")
                     .replace('\n', " ");
-                let preview_truncated = if preview_text.len() > inner.width as usize {
-                    format!("{}...", &preview_text[..inner.width.saturating_sub(4) as usize])
+                let max_chars = inner.width.saturating_sub(4) as usize;
+                let preview_truncated = if preview_text.chars().count() > max_chars {
+                    let truncated: String = preview_text.chars().take(max_chars).collect();
+                    format!("{}...", truncated)
                 } else {
                     preview_text
                 };
