@@ -297,6 +297,14 @@ impl App {
                     self.overlay = Overlay::Control(ControlPanel::new());
                     return;
                 }
+                KeyCode::Char('o') => {
+                    self.open_model_popup();
+                    return;
+                }
+                KeyCode::Char('t') => {
+                    self.open_provider_popup();
+                    return;
+                }
                 KeyCode::Char('s') => {
                     self.open_settings();
                     return;

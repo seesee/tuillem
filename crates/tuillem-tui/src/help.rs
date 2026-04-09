@@ -46,6 +46,14 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
             Span::styled("Command palette", dim),
         ]),
         Line::from(vec![
+            Span::styled("  Ctrl+O    ", normal),
+            Span::styled("Switch model", dim),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+T    ", normal),
+            Span::styled("Switch provider", dim),
+        ]),
+        Line::from(vec![
             Span::styled("  Ctrl+S    ", normal),
             Span::styled("Settings", dim),
         ]),
