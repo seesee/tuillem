@@ -46,12 +46,20 @@ impl Coordinator {
         mut action_rx: mpsc::UnboundedReceiver<Action>,
         event_tx: mpsc::UnboundedSender<Event>,
     ) {
-        // On startup, load sessions
+        // On startup, load sessions and select the most recent one
         if let Ok(sessions) = self.db.list_sessions() {
-            let summaries = sessions.iter().map(session_to_summary).collect();
+            let summaries: Vec<SessionSummary> =
+                sessions.iter().map(session_to_summary).collect();
             let _ = event_tx.send(Event::SessionsLoaded {
                 sessions: summaries,
             });
+            if let Some(first) = sessions.first() {
+                self.active_session_id = Some(first.id.clone());
+                let _ = event_tx.send(Event::SessionSelected {
+                    id: first.id.clone(),
+                });
+                self.send_messages_loaded(&first.id, &event_tx);
+            }
         }
 
         while let Some(action) = action_rx.recv().await {
@@ -110,10 +118,29 @@ impl Coordinator {
                 }
 
                 Action::SendMessage { content } => {
-                    if let Some(session_id) = self.active_session_id.clone() {
-                        self.handle_send_message(&session_id, &content, &event_tx)
-                            .await;
+                    // Auto-create a session if none is active
+                    if self.active_session_id.is_none() {
+                        let title = truncate_for_title(&content);
+                        match self.db.create_session(&title) {
+                            Ok(session) => {
+                                self.active_session_id = Some(session.id.clone());
+                                let _ = event_tx.send(Event::SessionCreated {
+                                    id: session.id.clone(),
+                                    title: session.title,
+                                });
+                            }
+                            Err(e) => {
+                                error!("Failed to auto-create session: {e}");
+                                let _ = event_tx.send(Event::ResponseError {
+                                    error: format!("Failed to create session: {e}"),
+                                });
+                                continue;
+                            }
+                        }
                     }
+                    let session_id = self.active_session_id.clone().unwrap();
+                    self.handle_send_message(&session_id, &content, &event_tx)
+                        .await;
                 }
 
                 Action::RegenerateLastResponse => {
@@ -345,6 +372,15 @@ impl Coordinator {
                 error!("Failed to load messages: {e}");
             }
         }
+    }
+}
+
+fn truncate_for_title(content: &str) -> String {
+    let first_line = content.lines().next().unwrap_or(content);
+    if first_line.len() > 60 {
+        format!("{}...", &first_line[..57])
+    } else {
+        first_line.to_string()
     }
 }
 
