@@ -56,6 +56,11 @@ pub enum Overlay {
     Control(ControlPanel),
     Settings(SettingsPanel),
     Selection(SelectionPopup),
+    CodeBlockSelect {
+        items: Vec<String>,
+        blocks: Vec<String>,
+        selected: usize,
+    },
 }
 
 pub struct App {
@@ -176,7 +181,52 @@ impl App {
             Overlay::Selection(popup) => {
                 self.draw_selection_popup(frame, size, popup);
             }
+            Overlay::CodeBlockSelect { items, selected, .. } => {
+                self.draw_code_block_popup(frame, size, items, *selected);
+            }
         }
+    }
+
+    fn draw_code_block_popup(&self, frame: &mut Frame, area: Rect, items: &[String], selected: usize) {
+        let popup_width = 60u16.min(area.width.saturating_sub(10));
+        let popup_height = (items.len() as u16 + 2).min(area.height.saturating_sub(6));
+        let x = (area.width.saturating_sub(popup_width)) / 2;
+        let y = (area.height.saturating_sub(popup_height)) / 2;
+        let popup_area = Rect::new(x, y, popup_width, popup_height);
+
+        frame.render_widget(Clear, popup_area);
+
+        let list_items: Vec<ListItem> = items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                let style = if i == selected {
+                    Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(self.theme.fg)
+                };
+                let marker = if i == selected { "▸ " } else { "  " };
+                ListItem::new(Line::from(Span::styled(format!("{}{}", marker, item), style)))
+            })
+            .collect();
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(self.theme.accent))
+            .title(Line::from(Span::styled(
+                " Copy Code Block ",
+                Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD),
+            )))
+            .title_bottom(Line::from(Span::styled(
+                " j/k:select  Enter:copy  Esc:cancel ",
+                Style::default().fg(self.theme.thinking_fg),
+            )))
+            .style(Style::default().bg(self.theme.bg));
+
+        let mut list_state = ListState::default();
+        list_state.select(Some(selected));
+        let list = List::new(list_items).block(block);
+        frame.render_stateful_widget(list, popup_area, &mut list_state);
     }
 
     fn draw_selection_popup(&self, frame: &mut Frame, area: Rect, popup: &SelectionPopup) {
@@ -311,6 +361,14 @@ impl App {
                 }
                 KeyCode::Char('h') => {
                     self.overlay = Overlay::Help;
+                    return;
+                }
+                KeyCode::Char('y') => {
+                    self.copy_last_response();
+                    return;
+                }
+                KeyCode::Char('b') => {
+                    self.copy_code_blocks();
                     return;
                 }
                 _ => {}
@@ -480,6 +538,30 @@ impl App {
                                     model,
                                 });
                             }
+                        }
+                    }
+                }
+                _ => {}
+            },
+            Overlay::CodeBlockSelect { items: _, blocks, selected } => match key.code {
+                KeyCode::Esc => {
+                    self.overlay = Overlay::None;
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    let len = blocks.len();
+                    if *selected + 1 < len {
+                        *selected += 1;
+                    }
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    *selected = selected.saturating_sub(1);
+                }
+                KeyCode::Enter => {
+                    let block_text = blocks[*selected].clone();
+                    self.overlay = Overlay::None;
+                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                        if clipboard.set_text(&block_text).is_ok() {
+                            self.state.error = Some("Copied code block to clipboard".to_string());
                         }
                     }
                 }
@@ -825,6 +907,95 @@ impl App {
             });
         }
         self.sidebar.selected = 0;
+    }
+
+    fn copy_last_response(&mut self) {
+        let last_assistant = self
+            .state
+            .messages
+            .iter()
+            .rev()
+            .find(|m| m.role == "assistant");
+        if let Some(msg) = last_assistant {
+            let text = msg.content.as_deref().unwrap_or("");
+            if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                if clipboard.set_text(text).is_ok() {
+                    self.state.error = None;
+                    // Brief feedback — reuse error field with a positive message
+                    self.state.error = Some("Copied response to clipboard".to_string());
+                }
+            }
+        }
+    }
+
+    fn copy_code_blocks(&mut self) {
+        let last_assistant = self
+            .state
+            .messages
+            .iter()
+            .rev()
+            .find(|m| m.role == "assistant");
+        let content = match last_assistant {
+            Some(msg) => msg.content.as_deref().unwrap_or(""),
+            None => return,
+        };
+
+        // Extract fenced code blocks
+        let mut blocks: Vec<String> = Vec::new();
+        let mut in_block = false;
+        let mut current_block = String::new();
+
+        for line in content.lines() {
+            if line.trim_start().starts_with("```") {
+                if in_block {
+                    // End of block
+                    blocks.push(current_block.clone());
+                    current_block.clear();
+                    in_block = false;
+                } else {
+                    // Start of block
+                    in_block = true;
+                    current_block.clear();
+                }
+            } else if in_block {
+                if !current_block.is_empty() {
+                    current_block.push('\n');
+                }
+                current_block.push_str(line);
+            }
+        }
+
+        if blocks.is_empty() {
+            // No code blocks — copy full response
+            self.copy_last_response();
+            return;
+        }
+
+        if blocks.len() == 1 {
+            // Single block — copy directly
+            if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                if clipboard.set_text(&blocks[0]).is_ok() {
+                    self.state.error = Some("Copied code block to clipboard".to_string());
+                }
+            }
+            return;
+        }
+
+        // Multiple blocks — show selection popup
+        let items: Vec<String> = blocks
+            .iter()
+            .enumerate()
+            .map(|(i, b)| {
+                let preview: String = b.lines().next().unwrap_or("").chars().take(40).collect();
+                format!("Block {} — {}", i + 1, preview)
+            })
+            .collect();
+
+        self.overlay = Overlay::CodeBlockSelect {
+            items,
+            blocks,
+            selected: 0,
+        };
     }
 
     fn history_prev(&mut self) {

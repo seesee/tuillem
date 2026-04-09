@@ -10,7 +10,7 @@ use crate::theme::Theme;
 
 pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
     let popup_width = 60u16.min(area.width.saturating_sub(6));
-    let popup_height = 28u16.min(area.height.saturating_sub(4));
+    let popup_height = 34u16.min(area.height.saturating_sub(4));
     let x = (area.width.saturating_sub(popup_width)) / 2;
     let y = (area.height.saturating_sub(popup_height)) / 2;
     let popup_area = Rect::new(x, y, popup_width, popup_height);
@@ -56,6 +56,14 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
         Line::from(vec![
             Span::styled("  Ctrl+S    ", normal),
             Span::styled("Settings", dim),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+Y    ", normal),
+            Span::styled("Copy last response to clipboard", dim),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+B    ", normal),
+            Span::styled("Copy code blocks from last response", dim),
         ]),
         Line::from(vec![
             Span::styled("  Ctrl+H/?  ", normal),
