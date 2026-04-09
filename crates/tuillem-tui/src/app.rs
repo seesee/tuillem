@@ -213,17 +213,19 @@ impl App {
             }
         }
 
-        // F-key bindings (work regardless of modifiers)
-        match key.code {
-            KeyCode::F(2) => {
-                self.open_model_popup();
-                return;
+        // More Ctrl bindings (these are safe in raw mode)
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            match key.code {
+                KeyCode::Char('o') => {
+                    self.open_model_popup();
+                    return;
+                }
+                KeyCode::Char('t') => {
+                    self.open_provider_popup();
+                    return;
+                }
+                _ => {}
             }
-            KeyCode::F(3) => {
-                self.open_provider_popup();
-                return;
-            }
-            _ => {}
         }
 
         // Tab / Shift+Tab cycle focus
