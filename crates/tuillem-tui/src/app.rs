@@ -1,4 +1,5 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+use tracing::{debug, warn};
 use tokio::sync::mpsc;
 use tuillem_core::{
     actions::{Action, Event},
@@ -276,7 +277,11 @@ impl App {
                     let content = self.input.take_content();
                     if !content.trim().is_empty() {
                         self.state.error = None;
-                        let _ = self.action_tx.send(Action::SendMessage { content });
+                        debug!("Sending Action::SendMessage, content length={}", content.len());
+                        if let Err(e) = self.action_tx.send(Action::SendMessage { content }) {
+                            warn!("Failed to send action to coordinator: {e}");
+                            self.state.error = Some(format!("Internal error: coordinator disconnected ({e})"));
+                        }
                     }
                 }
             }

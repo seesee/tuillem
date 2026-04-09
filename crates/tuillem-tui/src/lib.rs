@@ -15,6 +15,8 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 use tokio::sync::mpsc;
 use tuillem_core::actions::Event;
 
+use tracing::debug;
+
 use crate::app::App;
 
 pub async fn run(
@@ -41,8 +43,14 @@ pub async fn run(
         })?;
 
         // Process backend events (non-blocking)
+        let mut event_count = 0;
         while let Ok(event) = event_rx.try_recv() {
+            debug!("TUI received event: {:?}", event);
             app.apply_event(&event);
+            event_count += 1;
+        }
+        if event_count > 0 {
+            debug!("TUI processed {} events this frame", event_count);
         }
 
         // Poll terminal events with 16ms timeout (~60fps)

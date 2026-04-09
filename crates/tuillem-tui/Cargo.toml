@@ -12,6 +12,7 @@ crossterm = "0.29"
 tokio = { workspace = true }
 anyhow = { workspace = true }
 unicode-width = "0.2"
+tracing = { workspace = true }
 tempfile = "3"
 
 [dev-dependencies]

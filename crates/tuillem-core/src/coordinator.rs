@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use tuillem_db::Db;
 use tuillem_db::messages::{NewBlock, NewMessage};
@@ -46,8 +46,10 @@ impl Coordinator {
         mut action_rx: mpsc::UnboundedReceiver<Action>,
         event_tx: mpsc::UnboundedSender<Event>,
     ) {
+        info!("Coordinator run() started, waiting for actions...");
         // On startup, load sessions and select the most recent one
         if let Ok(sessions) = self.db.list_sessions() {
+            debug!("Loaded {} existing sessions from DB", sessions.len());
             let summaries: Vec<SessionSummary> =
                 sessions.iter().map(session_to_summary).collect();
             let _ = event_tx.send(Event::SessionsLoaded {
@@ -63,6 +65,7 @@ impl Coordinator {
         }
 
         while let Some(action) = action_rx.recv().await {
+            debug!("Coordinator received action: {:?}", action);
             match action {
                 Action::CreateSession { title } => match self.db.create_session(&title) {
                     Ok(session) => {
@@ -118,6 +121,7 @@ impl Coordinator {
                 }
 
                 Action::SendMessage { content } => {
+                    debug!("SendMessage: content='{}', active_session={:?}", &content[..content.len().min(50)], self.active_session_id);
                     // Auto-create a session if none is active
                     if self.active_session_id.is_none() {
                         let title = truncate_for_title(&content);
@@ -188,6 +192,7 @@ impl Coordinator {
         content: &str,
         event_tx: &mpsc::UnboundedSender<Event>,
     ) {
+        debug!("handle_send_message: session={}, provider={}, model={}", session_id, self.current_provider, self.current_model);
         // 1. Store user message in DB
         let user_msg = NewMessage {
             session_id,
@@ -210,6 +215,7 @@ impl Coordinator {
             return;
         }
 
+        debug!("User message stored, reloading messages for UI");
         // Show user message immediately in the UI
         self.send_messages_loaded(session_id, event_tx);
 
@@ -247,16 +253,22 @@ impl Coordinator {
         let provider = match self.providers.get(&self.current_provider) {
             Some(p) => p,
             None => {
+                error!("Provider '{}' not found in providers map (available: {:?})", self.current_provider, self.providers.keys().collect::<Vec<_>>());
                 let _ = event_tx.send(Event::ResponseError {
-                    error: format!("Provider '{}' not found", self.current_provider),
+                    error: format!("Provider '{}' not found (available: {:?})", self.current_provider, self.providers.keys().collect::<Vec<_>>()),
                 });
                 return;
             }
         };
 
+        debug!("Calling provider.send() with {} messages", request.messages.len());
         let mut stream = match provider.send(request).await {
-            Ok(s) => s,
+            Ok(s) => {
+                debug!("Provider returned stream successfully");
+                s
+            }
             Err(e) => {
+                error!("Provider.send() failed: {e}");
                 let _ = event_tx.send(Event::ResponseError {
                     error: format!("Provider error: {e}"),
                 });

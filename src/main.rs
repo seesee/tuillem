@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
+use tracing::{debug, error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -9,27 +10,39 @@ async fn main() -> Result<()> {
         .map(|d| d.data_dir().to_path_buf())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
     std::fs::create_dir_all(&log_dir)?;
-    let log_file = std::fs::File::create(log_dir.join("tuillem.log"))?;
+    let log_path = log_dir.join("tuillem.log");
+    let log_file = std::fs::File::create(&log_path)?;
+
+    // Enable DEBUG level for tuillem crates, INFO for everything else
+    use tracing_subscriber::EnvFilter;
     tracing_subscriber::fmt()
         .with_writer(log_file)
         .with_ansi(false)
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                EnvFilter::new("tuillem=debug,tuillem_core=debug,tuillem_db=debug,tuillem_provider=debug,tuillem_plugin=debug,tuillem_tui=debug,tuillem_config=debug,info")
+            }),
+        )
         .init();
+
+    info!("tuillem starting — log file: {}", log_path.display());
 
     // 2. Load config
     let config_path = tuillem_config::Config::default_path();
+    debug!("Config path: {}", config_path.display());
     let config = if config_path.exists() {
+        debug!("Config file found, loading...");
         tuillem_config::Config::from_file(&config_path)?
     } else {
+        info!("No config found at {}. Using defaults.", config_path.display());
         eprintln!(
             "No config found at {}. Using defaults.",
             config_path.display()
         );
-        eprintln!(
-            "Copy config.example.yaml to {} to get started.",
-            config_path.display()
-        );
-        tuillem_config::Config::from_yaml("{}")?
+        tuillem_config::Config::from_file(&config_path)?
     };
+    debug!("Config loaded: {} providers, default provider={:?}, default model={:?}",
+        config.providers.len(), config.defaults.provider, config.defaults.model);
 
     // 3. Expand ~ in database path
     let db_path = shellexpand::tilde(&config.database.path).to_string();
@@ -43,15 +56,18 @@ async fn main() -> Result<()> {
     // 5. Initialize providers from config; log warnings for failures but don't abort
     let mut providers: HashMap<String, Box<dyn tuillem_provider::Provider>> = HashMap::new();
     for pc in &config.providers {
+        debug!("Initializing provider '{}' (type={:?}, base_url={:?})", pc.name, pc.provider_type, pc.base_url);
         match tuillem_provider::create_provider(pc) {
             Ok(p) => {
+                info!("Provider '{}' initialized with {} models", pc.name, p.models().len());
                 providers.insert(pc.name.clone(), p);
             }
             Err(e) => {
-                tracing::warn!("Failed to initialize provider '{}': {}", pc.name, e);
+                error!("Failed to initialize provider '{}': {}", pc.name, e);
             }
         }
     }
+    debug!("Total providers initialized: {}", providers.len());
 
     // 6. Initialize PluginHost from config tools
     let plugin_host = tuillem_plugin::PluginHost::new(config.tools.clone());
@@ -90,6 +106,7 @@ async fn main() -> Result<()> {
     let app = tuillem_tui::app::App::new(state, theme, action_tx, config.editor.clone());
 
     // 12. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
+    debug!("Starting coordinator with provider='{}', model='{}'", default_provider, default_model);
     let coordinator = tuillem_core::Coordinator::new(
         db,
         providers,
@@ -103,7 +120,9 @@ async fn main() -> Result<()> {
             .enable_all()
             .build()
             .expect("Failed to build coordinator runtime");
+        info!("Coordinator thread started");
         rt.block_on(coordinator.run(action_rx, event_tx));
+        info!("Coordinator thread exiting");
     });
 
     // 13. Run TUI (blocks until quit)
