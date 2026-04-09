@@ -1,0 +1,16 @@
+[package]
+name = "tuillem-tui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tuillem-config = { path = "../tuillem-config" }
+tuillem-core = { path = "../tuillem-core" }
+tuillem-markdown = { path = "../tuillem-markdown" }
+ratatui = "0.30"
+crossterm = "0.29"
+tokio = { workspace = true }
+unicode-width = "0.2"
+
+[dev-dependencies]
+insta = "1"

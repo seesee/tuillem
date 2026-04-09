@@ -1,0 +1,47 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/tuillem-config",
+    "crates/tuillem-db",
+    "crates/tuillem-markdown",
+    "crates/tuillem-provider",
+    "crates/tuillem-plugin",
+    "crates/tuillem-core",
+    "crates/tuillem-tui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/yourusername/tuillem"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[package]
+name = "tuillem"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tuillem-config = { path = "crates/tuillem-config" }
+tuillem-db = { path = "crates/tuillem-db" }
+tuillem-markdown = { path = "crates/tuillem-markdown" }
+tuillem-provider = { path = "crates/tuillem-provider" }
+tuillem-plugin = { path = "crates/tuillem-plugin" }
+tuillem-core = { path = "crates/tuillem-core" }
+tuillem-tui = { path = "crates/tuillem-tui" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

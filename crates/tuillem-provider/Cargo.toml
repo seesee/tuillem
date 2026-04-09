@@ -1,0 +1,21 @@
+[package]
+name = "tuillem-provider"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tuillem-config = { path = "../tuillem-config" }
+tokio = { workspace = true }
+tokio-stream = "0.1"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = "0.1"
+futures = "0.3"
+pin-project-lite = "0.2"
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { workspace = true, features = ["test-util"] }
