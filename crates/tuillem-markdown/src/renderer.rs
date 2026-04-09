@@ -194,12 +194,12 @@ impl MdRenderer {
 
         let num_cols = headers.len();
 
-        // Measure natural column widths
-        let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
+        // Measure natural column widths using character count (not byte length)
+        let mut widths: Vec<usize> = headers.iter().map(|h| h.chars().count()).collect();
         for row in rows {
             for (i, cell) in row.iter().enumerate() {
                 if i < widths.len() {
-                    widths[i] = widths[i].max(cell.len());
+                    widths[i] = widths[i].max(cell.chars().count());
                 }
             }
         }
@@ -392,9 +392,10 @@ impl Default for MdRenderer {
 }
 
 fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    let char_count = s.chars().count();
+    if char_count <= max_len {
         s.to_string()
-    } else if max_len <= 3 {
+    } else if max_len <= 1 {
         s.chars().take(max_len).collect()
     } else {
         let truncated: String = s.chars().take(max_len - 1).collect();
