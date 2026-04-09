@@ -1,5 +1,6 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
+use unicode_width::UnicodeWidthStr;
 
 use crate::highlight::Highlighter;
 use crate::parser::{InlineElement, ListItem, MdElement};
@@ -209,12 +210,12 @@ impl MdRenderer {
             usize::MAX
         };
 
-        // Natural widths (by char count)
-        let mut natural: Vec<usize> = headers.iter().map(|h| h.chars().count()).collect();
+        // Natural widths (by unicode display width)
+        let mut natural: Vec<usize> = headers.iter().map(|h| UnicodeWidthStr::width(h.as_str())).collect();
         for row in rows {
             for (i, cell) in row.iter().enumerate() {
                 if i < natural.len() {
-                    natural[i] = natural[i].max(cell.chars().count());
+                    natural[i] = natural[i].max(UnicodeWidthStr::width(cell.as_str()));
                 }
             }
         }
@@ -285,7 +286,7 @@ impl MdRenderer {
                     .get(line_idx)
                     .map(|s| s.as_str())
                     .unwrap_or("");
-                let padded = format!(" {:<width$} ", text, width = w);
+                let padded = pad_to_width(text, *w);
                 spans.push(Span::styled(padded, cell_style));
                 spans.push(Span::styled("│".to_string(), border_style));
             }
@@ -447,56 +448,84 @@ fn fit_columns(natural: &[usize], budget: usize) -> Vec<usize> {
     widths
 }
 
-/// Wrap text into lines that fit within max_width characters.
+/// Pad text to exactly `width` display columns, with 1 space on each side.
+fn pad_to_width(text: &str, width: usize) -> String {
+    let text_width = display_width(text);
+    let padding = width.saturating_sub(text_width);
+    format!(" {}{} ", text, " ".repeat(padding))
+}
+
+/// Display width of a string (accounts for wide chars like CJK, emoji).
+fn display_width(s: &str) -> usize {
+    UnicodeWidthStr::width(s)
+}
+
+/// Wrap text into lines that fit within max_width display columns.
 fn wrap_cell(text: &str, max_width: usize) -> Vec<String> {
     if max_width == 0 {
         return vec![text.to_string()];
     }
-    if text.chars().count() <= max_width {
+    if display_width(text) <= max_width {
         return vec![text.to_string()];
     }
 
     let mut result = Vec::new();
     let mut current = String::new();
-    let mut current_len = 0;
+    let mut current_width = 0;
 
     for word in text.split_whitespace() {
-        let wlen = word.chars().count();
-        if current_len == 0 {
-            // Force-break very long words
-            if wlen > max_width {
-                let mut chars = word.chars();
-                while chars.clone().count() > 0 {
-                    let chunk: String = chars.by_ref().take(max_width).collect();
-                    if chunk.is_empty() {
-                        break;
+        let wwidth = display_width(word);
+        if current_width == 0 {
+            if wwidth > max_width {
+                // Force-break very long words by char
+                let mut line = String::new();
+                let mut line_w = 0;
+                for ch in word.chars() {
+                    let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+                    if line_w + cw > max_width && !line.is_empty() {
+                        result.push(line);
+                        line = String::new();
+                        line_w = 0;
                     }
-                    result.push(chunk);
+                    line.push(ch);
+                    line_w += cw;
+                }
+                if !line.is_empty() {
+                    result.push(line);
                 }
             } else {
                 current = word.to_string();
-                current_len = wlen;
+                current_width = wwidth;
             }
-        } else if current_len + 1 + wlen <= max_width {
+        } else if current_width + 1 + wwidth <= max_width {
             current.push(' ');
             current.push_str(word);
-            current_len += 1 + wlen;
+            current_width += 1 + wwidth;
         } else {
             result.push(current);
-            if wlen > max_width {
-                let mut chars = word.chars();
-                while chars.clone().count() > 0 {
-                    let chunk: String = chars.by_ref().take(max_width).collect();
-                    if chunk.is_empty() {
-                        break;
+            if wwidth > max_width {
+                let mut line = String::new();
+                let mut line_w = 0;
+                for ch in word.chars() {
+                    let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+                    if line_w + cw > max_width && !line.is_empty() {
+                        result.push(line);
+                        line = String::new();
+                        line_w = 0;
                     }
-                    result.push(chunk);
+                    line.push(ch);
+                    line_w += cw;
                 }
-                current = String::new();
-                current_len = 0;
+                if !line.is_empty() {
+                    current = line;
+                    current_width = display_width(&current);
+                } else {
+                    current = String::new();
+                    current_width = 0;
+                }
             } else {
                 current = word.to_string();
-                current_len = wlen;
+                current_width = wwidth;
             }
         }
     }
@@ -510,14 +539,23 @@ fn wrap_cell(text: &str, max_width: usize) -> Vec<String> {
 }
 
 fn truncate_str(s: &str, max_len: usize) -> String {
-    let char_count = s.chars().count();
-    if char_count <= max_len {
+    if display_width(s) <= max_len {
         s.to_string()
     } else if max_len <= 1 {
         s.chars().take(max_len).collect()
     } else {
-        let truncated: String = s.chars().take(max_len - 1).collect();
-        format!("{}…", truncated)
+        // Truncate by display width
+        let mut result = String::new();
+        let mut w = 0;
+        for ch in s.chars() {
+            let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+            if w + cw + 1 > max_len {
+                break;
+            }
+            result.push(ch);
+            w += cw;
+        }
+        format!("{}…", result)
     }
 }
 
