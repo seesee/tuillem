@@ -54,10 +54,16 @@ pub struct ChatRequest {
 pub enum StreamDelta {
     Text(String),
     Thinking(String),
-    ToolCallStart { id: String, name: String },
+    ToolCallStart {
+        id: String,
+        name: String,
+    },
     ToolCallDelta(String),
     ToolCallEnd,
-    Usage { input_tokens: u64, output_tokens: u64 },
+    Usage {
+        input_tokens: u64,
+        output_tokens: u64,
+    },
     Done,
 }
 
@@ -92,9 +98,7 @@ pub trait Provider: Send + Sync {
 // Factory
 // ---------------------------------------------------------------------------
 
-pub fn create_provider(
-    config: &ProviderConfig,
-) -> Result<Box<dyn Provider>, ProviderError> {
+pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn Provider>, ProviderError> {
     match config.provider_type {
         ProviderType::Anthropic => {
             let api_key = config

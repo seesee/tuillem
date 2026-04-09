@@ -144,7 +144,12 @@ impl MdRenderer {
         }
     }
 
-    fn render_table(&self, lines: &mut Vec<Line<'static>>, headers: &[String], rows: &[Vec<String>]) {
+    fn render_table(
+        &self,
+        lines: &mut Vec<Line<'static>>,
+        headers: &[String],
+        rows: &[Vec<String>],
+    ) {
         if headers.is_empty() {
             return;
         }
@@ -203,7 +208,11 @@ impl MdRenderer {
             let mut row_spans: Vec<Span<'static>> = Vec::new();
             row_spans.push(Span::styled("│".to_string(), border_style));
             for (i, cell) in row.iter().enumerate() {
-                let w = if i < widths.len() { widths[i] } else { cell.len() };
+                let w = if i < widths.len() {
+                    widths[i]
+                } else {
+                    cell.len()
+                };
                 let padded = format!(" {:<width$} ", cell, width = w);
                 row_spans.push(Span::raw(padded));
                 row_spans.push(Span::styled("│".to_string(), border_style));
@@ -289,7 +298,11 @@ mod tests {
         let renderer = MdRenderer::new();
         let text = renderer.render(&elements);
         let first_line = &text.lines[0];
-        let content: String = first_line.spans.iter().map(|s| s.content.as_ref()).collect();
+        let content: String = first_line
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(content.contains("# Hello"));
     }
 

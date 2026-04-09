@@ -57,28 +57,24 @@ async fn main() -> Result<()> {
     let plugin_host = tuillem_plugin::PluginHost::new(config.tools.clone());
 
     // 7. Determine default provider and model from config
-    let default_provider = config
-        .defaults
-        .provider
-        .clone()
-        .unwrap_or_else(|| {
-            config
-                .providers
-                .first()
-                .map(|p| p.name.clone())
-                .unwrap_or_default()
-        });
-    let default_model = config
-        .defaults
-        .model
-        .clone()
-        .unwrap_or_else(|| {
-            config
-                .providers
-                .first()
-                .and_then(|p| p.default_model.clone().or_else(|| p.models.first().cloned()))
-                .unwrap_or_default()
-        });
+    let default_provider = config.defaults.provider.clone().unwrap_or_else(|| {
+        config
+            .providers
+            .first()
+            .map(|p| p.name.clone())
+            .unwrap_or_default()
+    });
+    let default_model = config.defaults.model.clone().unwrap_or_else(|| {
+        config
+            .providers
+            .first()
+            .and_then(|p| {
+                p.default_model
+                    .clone()
+                    .or_else(|| p.models.first().cloned())
+            })
+            .unwrap_or_default()
+    });
 
     // 8. Create mpsc channels (unbounded) for actions and events
     let (action_tx, action_rx) = mpsc::unbounded_channel();

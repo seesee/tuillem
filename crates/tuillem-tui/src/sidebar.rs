@@ -28,10 +28,7 @@ impl Sidebar {
     }
 
     /// Filter sessions by search query (case-insensitive match on title or tags).
-    pub fn filtered_sessions<'a>(
-        &self,
-        sessions: &'a [SessionSummary],
-    ) -> Vec<&'a SessionSummary> {
+    pub fn filtered_sessions<'a>(&self, sessions: &'a [SessionSummary]) -> Vec<&'a SessionSummary> {
         if self.search_input.is_empty() {
             sessions.iter().collect()
         } else {
@@ -108,9 +105,7 @@ impl Sidebar {
                     ));
                 }
                 let style = if i == self.selected {
-                    theme
-                        .sidebar_selected_style()
-                        .add_modifier(Modifier::BOLD)
+                    theme.sidebar_selected_style().add_modifier(Modifier::BOLD)
                 } else {
                     theme.sidebar_style()
                 };

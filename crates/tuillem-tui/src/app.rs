@@ -5,12 +5,7 @@ use tuillem_core::{
     state::AppState,
 };
 
-use crate::{
-    conversation::Conversation,
-    input::Input,
-    sidebar::Sidebar,
-    theme::Theme,
-};
+use crate::{conversation::Conversation, input::Input, sidebar::Sidebar, theme::Theme};
 
 use ratatui::{
     Frame,
@@ -191,10 +186,7 @@ impl App {
             return;
         }
 
-        let session_count = self
-            .sidebar
-            .filtered_sessions(&self.state.sessions)
-            .len();
+        let session_count = self.sidebar.filtered_sessions(&self.state.sessions).len();
 
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
@@ -336,7 +328,9 @@ impl App {
     pub fn open_external_editor(&mut self) {
         use crossterm::{
             execute,
-            terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+            terminal::{
+                EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+            },
         };
 
         // Write current content to temp file
@@ -363,12 +357,11 @@ impl App {
         let _ = enable_raw_mode();
 
         // Read back content if editor succeeded
-        if let Ok(exit) = status {
-            if exit.success() {
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    self.input.set_content(content);
-                }
-            }
+        if let Ok(exit) = status
+            && exit.success()
+            && let Ok(content) = std::fs::read_to_string(&path)
+        {
+            self.input.set_content(content);
         }
     }
 }

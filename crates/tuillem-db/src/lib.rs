@@ -51,11 +51,9 @@ impl Db {
 
     fn current_schema_version(&self) -> i64 {
         self.conn
-            .query_row(
-                "SELECT MAX(version) FROM schema_version",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT MAX(version) FROM schema_version", [], |row| {
+                row.get(0)
+            })
             .unwrap_or(0)
     }
 }

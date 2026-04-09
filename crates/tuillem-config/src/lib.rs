@@ -24,18 +24,13 @@ pub enum ConfigError {
 // Enums
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum KeybindingPreset {
     Vim,
     Emacs,
+    #[default]
     Default,
-}
-
-impl Default for KeybindingPreset {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -284,10 +279,7 @@ impl Config {
 
         // Default provider must exist in the providers list.
         if let Some(ref default_provider) = self.defaults.provider {
-            let exists = self
-                .providers
-                .iter()
-                .any(|p| &p.name == default_provider);
+            let exists = self.providers.iter().any(|p| &p.name == default_provider);
             if !exists {
                 return Err(ConfigError::Validation(format!(
                     "Default provider '{}' not found in providers list",
@@ -376,10 +368,7 @@ ui:
         assert_eq!(config.providers[0].name, "anthropic");
         assert_eq!(config.providers[0].api_key.as_deref(), Some("sk-ant-test"));
         assert_eq!(config.providers[1].provider_type, ProviderType::Ollama);
-        assert_eq!(
-            config.defaults.provider.as_deref(),
-            Some("anthropic")
-        );
+        assert_eq!(config.defaults.provider.as_deref(), Some("anthropic"));
         assert_eq!(config.tools.len(), 1);
         assert_eq!(config.tools[0].timeout, "10s");
         assert!(config.tools[0].confirm);

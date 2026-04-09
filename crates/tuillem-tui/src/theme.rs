@@ -29,48 +29,48 @@ impl Theme {
     /// Catppuccin Mocha palette.
     pub fn dark() -> Self {
         Self {
-            bg: Color::Rgb(30, 30, 46),           // #1e1e2e
-            fg: Color::Rgb(205, 214, 244),         // #cdd6f4
-            sidebar_bg: Color::Rgb(24, 24, 37),    // #181825
-            sidebar_fg: Color::Rgb(186, 194, 222), // #bac2de
+            bg: Color::Rgb(30, 30, 46),                  // #1e1e2e
+            fg: Color::Rgb(205, 214, 244),               // #cdd6f4
+            sidebar_bg: Color::Rgb(24, 24, 37),          // #181825
+            sidebar_fg: Color::Rgb(186, 194, 222),       // #bac2de
             sidebar_selected: Color::Rgb(137, 180, 250), // #89b4fa
-            user_msg_bg: Color::Rgb(49, 50, 68),   // #313244
-            assistant_msg_bg: Color::Rgb(30, 30, 46), // #1e1e2e
-            thinking_fg: Color::Rgb(127, 132, 156), // #7f849c
-            accent: Color::Rgb(137, 180, 250),      // #89b4fa
-            error: Color::Rgb(243, 139, 168),       // #f38ba8
-            success: Color::Rgb(166, 227, 161),     // #a6e3a1
-            warning: Color::Rgb(249, 226, 175),     // #f9e2af
-            border: Color::Rgb(88, 91, 112),        // #585b70
-            code_bg: Color::Rgb(24, 24, 37),        // #181825
-            code_fg: Color::Rgb(166, 227, 161),     // #a6e3a1
-            heading: Color::Rgb(180, 190, 254),     // #b4befe
-            link: Color::Rgb(116, 199, 236),        // #74c7ec
-            tag: Color::Rgb(203, 166, 247),         // #cba6f7
+            user_msg_bg: Color::Rgb(49, 50, 68),         // #313244
+            assistant_msg_bg: Color::Rgb(30, 30, 46),    // #1e1e2e
+            thinking_fg: Color::Rgb(127, 132, 156),      // #7f849c
+            accent: Color::Rgb(137, 180, 250),           // #89b4fa
+            error: Color::Rgb(243, 139, 168),            // #f38ba8
+            success: Color::Rgb(166, 227, 161),          // #a6e3a1
+            warning: Color::Rgb(249, 226, 175),          // #f9e2af
+            border: Color::Rgb(88, 91, 112),             // #585b70
+            code_bg: Color::Rgb(24, 24, 37),             // #181825
+            code_fg: Color::Rgb(166, 227, 161),          // #a6e3a1
+            heading: Color::Rgb(180, 190, 254),          // #b4befe
+            link: Color::Rgb(116, 199, 236),             // #74c7ec
+            tag: Color::Rgb(203, 166, 247),              // #cba6f7
         }
     }
 
     /// Catppuccin Latte palette.
     pub fn light() -> Self {
         Self {
-            bg: Color::Rgb(239, 241, 245),          // #eff1f5
-            fg: Color::Rgb(76, 79, 105),            // #4c4f69
-            sidebar_bg: Color::Rgb(230, 233, 239),  // #e6e9ef
-            sidebar_fg: Color::Rgb(92, 95, 119),    // #5c5f77
-            sidebar_selected: Color::Rgb(30, 102, 245), // #1e66f5
-            user_msg_bg: Color::Rgb(204, 208, 218), // #ccd0da
+            bg: Color::Rgb(239, 241, 245),               // #eff1f5
+            fg: Color::Rgb(76, 79, 105),                 // #4c4f69
+            sidebar_bg: Color::Rgb(230, 233, 239),       // #e6e9ef
+            sidebar_fg: Color::Rgb(92, 95, 119),         // #5c5f77
+            sidebar_selected: Color::Rgb(30, 102, 245),  // #1e66f5
+            user_msg_bg: Color::Rgb(204, 208, 218),      // #ccd0da
             assistant_msg_bg: Color::Rgb(239, 241, 245), // #eff1f5
-            thinking_fg: Color::Rgb(140, 143, 161), // #8c8fa1
-            accent: Color::Rgb(30, 102, 245),       // #1e66f5
-            error: Color::Rgb(210, 15, 57),         // #d20f39
-            success: Color::Rgb(64, 160, 43),       // #40a02b
-            warning: Color::Rgb(223, 142, 29),      // #df8e1d
-            border: Color::Rgb(172, 176, 190),      // #acb0be
-            code_bg: Color::Rgb(230, 233, 239),     // #e6e9ef
-            code_fg: Color::Rgb(64, 160, 43),       // #40a02b
-            heading: Color::Rgb(114, 135, 253),     // #7287fd
-            link: Color::Rgb(4, 165, 229),          // #04a5e5
-            tag: Color::Rgb(136, 57, 239),          // #8839ef
+            thinking_fg: Color::Rgb(140, 143, 161),      // #8c8fa1
+            accent: Color::Rgb(30, 102, 245),            // #1e66f5
+            error: Color::Rgb(210, 15, 57),              // #d20f39
+            success: Color::Rgb(64, 160, 43),            // #40a02b
+            warning: Color::Rgb(223, 142, 29),           // #df8e1d
+            border: Color::Rgb(172, 176, 190),           // #acb0be
+            code_bg: Color::Rgb(230, 233, 239),          // #e6e9ef
+            code_fg: Color::Rgb(64, 160, 43),            // #40a02b
+            heading: Color::Rgb(114, 135, 253),          // #7287fd
+            link: Color::Rgb(4, 165, 229),               // #04a5e5
+            tag: Color::Rgb(136, 57, 239),               // #8839ef
         }
     }
 

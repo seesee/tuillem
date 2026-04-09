@@ -53,10 +53,7 @@ pub struct PluginHost {
 
 impl PluginHost {
     pub fn new(tools: Vec<ToolConfig>) -> Self {
-        let tools = tools
-            .into_iter()
-            .map(|t| (t.name.clone(), t))
-            .collect();
+        let tools = tools.into_iter().map(|t| (t.name.clone(), t)).collect();
         Self { tools }
     }
 
@@ -126,15 +123,23 @@ impl PluginHost {
 
                 // Try to parse stdout as ToolOutput JSON, fall back to raw stdout.
                 // Only accept it if at least one of output/error is present.
-                if let Ok(tool_output) = serde_json::from_str::<ToolOutput>(&stdout) {
-                    if tool_output.output.is_some() || tool_output.error.is_some() {
-                        return Ok(tool_output);
-                    }
+                if let Ok(tool_output) = serde_json::from_str::<ToolOutput>(&stdout)
+                    && (tool_output.output.is_some() || tool_output.error.is_some())
+                {
+                    return Ok(tool_output);
                 }
                 {
                     Ok(ToolOutput {
-                        output: if stdout.is_empty() { None } else { Some(stdout) },
-                        error: if stderr.is_empty() { None } else { Some(stderr) },
+                        output: if stdout.is_empty() {
+                            None
+                        } else {
+                            Some(stdout)
+                        },
+                        error: if stderr.is_empty() {
+                            None
+                        } else {
+                            Some(stderr)
+                        },
                     })
                 }
             }
@@ -198,7 +203,10 @@ mod tests {
         // cat echoes the JSON input back as raw stdout
         assert!(output.output.is_some(), "output should be present");
         let text = output.output.unwrap();
-        assert!(text.contains("hello"), "output should contain 'hello': {text}");
+        assert!(
+            text.contains("hello"),
+            "output should contain 'hello': {text}"
+        );
     }
 
     #[tokio::test]

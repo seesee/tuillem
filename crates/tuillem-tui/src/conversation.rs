@@ -56,19 +56,14 @@ impl Conversation {
             let role_label = if is_user {
                 "You".to_string()
             } else {
-                let model = msg
-                    .model_id
-                    .as_deref()
-                    .unwrap_or(current_model);
+                let model = msg.model_id.as_deref().unwrap_or(current_model);
                 format!("Assistant ({})", model)
             };
 
             let role_style = if is_user {
                 theme.user_message_style().add_modifier(Modifier::BOLD)
             } else {
-                theme
-                    .assistant_message_style()
-                    .add_modifier(Modifier::BOLD)
+                theme.assistant_message_style().add_modifier(Modifier::BOLD)
             };
 
             lines.push(Line::from(Span::styled(role_label, role_style)));
@@ -109,7 +104,7 @@ impl Conversation {
             if let Some(ref content) = msg.content {
                 let rendered = tuillem_markdown::render_markdown(content);
                 for line in rendered.lines {
-                    lines.push(line.into());
+                    lines.push(line);
                 }
             }
 
@@ -144,16 +139,14 @@ impl Conversation {
             if !streaming_text.is_empty() {
                 let rendered = tuillem_markdown::render_markdown(streaming_text);
                 for line in rendered.lines {
-                    lines.push(line.into());
+                    lines.push(line);
                 }
             }
 
             if streaming_text.is_empty() && streaming_thinking.is_empty() {
                 lines.push(Line::from(Span::styled(
                     " Waiting for response...",
-                    theme
-                        .thinking_style()
-                        .add_modifier(Modifier::SLOW_BLINK),
+                    theme.thinking_style().add_modifier(Modifier::SLOW_BLINK),
                 )));
             }
         }

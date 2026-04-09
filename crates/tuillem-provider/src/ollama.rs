@@ -2,9 +2,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use reqwest::Client;
 
-use crate::{
-    ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta,
-};
+use crate::{ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta};
 
 pub struct OllamaProvider {
     client: Client,
@@ -90,14 +88,11 @@ impl Provider for OllamaProvider {
                         let done = obj.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
 
                         // Extract message content
-                        if let Some(message) = obj.get("message") {
-                            if let Some(content) =
-                                message.get("content").and_then(|c| c.as_str())
-                            {
-                                if !content.is_empty() {
-                                    deltas.push(StreamDelta::Text(content.to_string()));
-                                }
-                            }
+                        if let Some(message) = obj.get("message")
+                            && let Some(content) = message.get("content").and_then(|c| c.as_str())
+                            && !content.is_empty()
+                        {
+                            deltas.push(StreamDelta::Text(content.to_string()));
                         }
 
                         if done {

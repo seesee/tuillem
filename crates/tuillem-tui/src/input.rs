@@ -32,11 +32,7 @@ impl Input {
         is_streaming: bool,
         theme: &Theme,
     ) {
-        let status = if is_streaming {
-            " streaming... "
-        } else {
-            ""
-        };
+        let status = if is_streaming { " streaming... " } else { "" };
 
         let title_line = Line::from(vec![
             Span::styled(

@@ -2,9 +2,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use reqwest::Client;
 
-use crate::{
-    ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta,
-};
+use crate::{ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta};
 
 pub struct OpenAiProvider {
     provider_name: String,
@@ -94,27 +92,22 @@ impl Provider for OpenAiProvider {
                             continue;
                         }
                         if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
-                            if let Some(choices) = event.get("choices").and_then(|c| c.as_array()) {
-                                if let Some(choice) = choices.first() {
-                                    if let Some(delta) = choice.get("delta") {
-                                        if let Some(content) =
-                                            delta.get("content").and_then(|c| c.as_str())
-                                        {
-                                            if !content.is_empty() {
-                                                deltas.push(StreamDelta::Text(
-                                                    content.to_string(),
-                                                ));
-                                            }
-                                        }
-                                    }
-                                    // Check for finish_reason
-                                    if let Some(finish) =
-                                        choice.get("finish_reason").and_then(|f| f.as_str())
-                                    {
-                                        if finish == "stop" {
-                                            deltas.push(StreamDelta::Done);
-                                        }
-                                    }
+                            if let Some(choices) = event.get("choices").and_then(|c| c.as_array())
+                                && let Some(choice) = choices.first()
+                            {
+                                if let Some(delta) = choice.get("delta")
+                                    && let Some(content) =
+                                        delta.get("content").and_then(|c| c.as_str())
+                                    && !content.is_empty()
+                                {
+                                    deltas.push(StreamDelta::Text(content.to_string()));
+                                }
+                                // Check for finish_reason
+                                if let Some(finish) =
+                                    choice.get("finish_reason").and_then(|f| f.as_str())
+                                    && finish == "stop"
+                                {
+                                    deltas.push(StreamDelta::Done);
                                 }
                             }
                             // Check for usage in the event

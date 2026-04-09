@@ -4,12 +4,18 @@ use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 pub enum MdElement {
     Heading(u8, String),
     Paragraph(Vec<InlineElement>),
-    CodeBlock { language: String, code: String },
+    CodeBlock {
+        language: String,
+        code: String,
+    },
     InlineCode(String),
     List(Vec<ListItem>),
     OrderedList(Vec<ListItem>),
     BlockQuote(Vec<MdElement>),
-    Table { headers: Vec<String>, rows: Vec<Vec<String>> },
+    Table {
+        headers: Vec<String>,
+        rows: Vec<Vec<String>>,
+    },
     ThematicBreak,
 }
 
@@ -150,7 +156,12 @@ fn parse_element(events: &[Event], start: usize, output: &mut Vec<MdElement>) ->
                                 }
                                 Event::Start(Tag::Paragraph) => {
                                     i += 1;
-                                    i = collect_inlines(events, i, &mut item_inlines, TagEnd::Paragraph);
+                                    i = collect_inlines(
+                                        events,
+                                        i,
+                                        &mut item_inlines,
+                                        TagEnd::Paragraph,
+                                    );
                                 }
                                 Event::Text(t) => {
                                     item_inlines.push(InlineElement::Text(t.to_string()));
@@ -165,7 +176,9 @@ fn parse_element(events: &[Event], start: usize, output: &mut Vec<MdElement>) ->
                                 }
                             }
                         }
-                        items.push(ListItem { content: item_inlines });
+                        items.push(ListItem {
+                            content: item_inlines,
+                        });
                     }
                     _ => {
                         i += 1;
@@ -280,7 +293,12 @@ fn parse_element(events: &[Event], start: usize, output: &mut Vec<MdElement>) ->
     }
 }
 
-fn collect_inlines(events: &[Event], start: usize, inlines: &mut Vec<InlineElement>, end_tag: TagEnd) -> usize {
+fn collect_inlines(
+    events: &[Event],
+    start: usize,
+    inlines: &mut Vec<InlineElement>,
+    end_tag: TagEnd,
+) -> usize {
     let mut i = start;
     loop {
         if i >= events.len() {
@@ -424,7 +442,11 @@ mod tests {
         assert_eq!(elements.len(), 1);
         match &elements[0] {
             MdElement::Paragraph(inlines) => {
-                assert!(inlines.iter().any(|i| matches!(i, InlineElement::Bold(t) if t == "world")));
+                assert!(
+                    inlines
+                        .iter()
+                        .any(|i| matches!(i, InlineElement::Bold(t) if t == "world"))
+                );
             }
             other => panic!("Expected Paragraph, got {:?}", other),
         }

@@ -9,9 +9,7 @@ use tuillem_db::messages::{NewBlock, NewMessage};
 use tuillem_plugin::PluginHost;
 use tuillem_provider::{ChatMessage, ChatRequest, Provider, StreamDelta};
 
-use crate::actions::{
-    Action, BlockView, Event, MessageView, SearchResultView, SessionSummary,
-};
+use crate::actions::{Action, BlockView, Event, MessageView, SearchResultView, SessionSummary};
 
 pub struct Coordinator {
     db: Db,
@@ -50,7 +48,7 @@ impl Coordinator {
     ) {
         // On startup, load sessions
         if let Ok(sessions) = self.db.list_sessions() {
-            let summaries = sessions.iter().map(|s| session_to_summary(s)).collect();
+            let summaries = sessions.iter().map(session_to_summary).collect();
             let _ = event_tx.send(Event::SessionsLoaded {
                 sessions: summaries,
             });
@@ -58,23 +56,21 @@ impl Coordinator {
 
         while let Some(action) = action_rx.recv().await {
             match action {
-                Action::CreateSession { title } => {
-                    match self.db.create_session(&title) {
-                        Ok(session) => {
-                            self.active_session_id = Some(session.id.clone());
-                            let _ = event_tx.send(Event::SessionCreated {
-                                id: session.id.clone(),
-                                title: session.title,
-                            });
-                            let _ = event_tx.send(Event::MessagesLoaded {
-                                messages: Vec::new(),
-                            });
-                        }
-                        Err(e) => {
-                            error!("Failed to create session: {e}");
-                        }
+                Action::CreateSession { title } => match self.db.create_session(&title) {
+                    Ok(session) => {
+                        self.active_session_id = Some(session.id.clone());
+                        let _ = event_tx.send(Event::SessionCreated {
+                            id: session.id.clone(),
+                            title: session.title,
+                        });
+                        let _ = event_tx.send(Event::MessagesLoaded {
+                            messages: Vec::new(),
+                        });
                     }
-                }
+                    Err(e) => {
+                        error!("Failed to create session: {e}");
+                    }
+                },
 
                 Action::SelectSession { id } => {
                     self.active_session_id = Some(id.clone());
@@ -130,24 +126,22 @@ impl Coordinator {
                     let _ = event_tx.send(Event::ModelSwitched { provider, model });
                 }
 
-                Action::Search { query } => {
-                    match self.db.search_messages(&query) {
-                        Ok(results) => {
-                            let views = results
-                                .into_iter()
-                                .map(|r| SearchResultView {
-                                    session_id: r.session_id,
-                                    session_title: r.session_title,
-                                    snippet: r.content_snippet,
-                                })
-                                .collect();
-                            let _ = event_tx.send(Event::SearchResults { results: views });
-                        }
-                        Err(e) => {
-                            error!("Search failed: {e}");
-                        }
+                Action::Search { query } => match self.db.search_messages(&query) {
+                    Ok(results) => {
+                        let views = results
+                            .into_iter()
+                            .map(|r| SearchResultView {
+                                session_id: r.session_id,
+                                session_title: r.session_title,
+                                snippet: r.content_snippet,
+                            })
+                            .collect();
+                        let _ = event_tx.send(Event::SearchResults { results: views });
                     }
-                }
+                    Err(e) => {
+                        error!("Search failed: {e}");
+                    }
+                },
 
                 Action::ConfirmToolCall { approved: _ } => {
                     // TODO: handle tool call confirmation
@@ -252,8 +246,7 @@ impl Coordinator {
                         full_text.push_str(&text);
                     }
                     StreamDelta::Thinking(text) => {
-                        let _ =
-                            event_tx.send(Event::ThinkingDelta { text: text.clone() });
+                        let _ = event_tx.send(Event::ThinkingDelta { text: text.clone() });
                         full_thinking.push_str(&text);
                     }
                     StreamDelta::Usage {
@@ -264,8 +257,7 @@ impl Coordinator {
                         output_tokens = o;
                     }
                     StreamDelta::ToolCallStart { name, .. } => {
-                        let requires_confirm =
-                            self.plugin_host.requires_confirmation(&name);
+                        let requires_confirm = self.plugin_host.requires_confirmation(&name);
                         let _ = event_tx.send(Event::ToolCallRequested {
                             tool_name: name,
                             input: serde_json::Value::Null,
@@ -331,9 +323,7 @@ impl Coordinator {
                 }
 
                 // 8. Send StreamDone and reload messages
-                let _ = event_tx.send(Event::StreamDone {
-                    message_id: msg.id,
-                });
+                let _ = event_tx.send(Event::StreamDone { message_id: msg.id });
                 self.send_messages_loaded(session_id, event_tx);
             }
             Err(e) => {
@@ -345,11 +335,7 @@ impl Coordinator {
         }
     }
 
-    fn send_messages_loaded(
-        &self,
-        session_id: &str,
-        event_tx: &mpsc::UnboundedSender<Event>,
-    ) {
+    fn send_messages_loaded(&self, session_id: &str, event_tx: &mpsc::UnboundedSender<Event>) {
         match self.db.get_session_messages(session_id) {
             Ok(msgs) => {
                 let views = msgs.into_iter().map(|m| message_to_view(&m)).collect();

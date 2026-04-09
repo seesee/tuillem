@@ -98,9 +98,11 @@ mod tests {
 
         let results = db.search_messages("iterators").unwrap();
         assert!(!results.is_empty());
-        assert!(results
-            .iter()
-            .any(|r| r.content_snippet.to_lowercase().contains("iterator")));
+        assert!(
+            results
+                .iter()
+                .any(|r| r.content_snippet.to_lowercase().contains("iterator"))
+        );
     }
 
     #[test]

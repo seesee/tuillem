@@ -21,7 +21,7 @@ impl Role {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "user" => Some(Role::User),
             "assistant" => Some(Role::Assistant),
@@ -50,7 +50,7 @@ impl BlockType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "text" => Some(BlockType::Text),
             "thinking" => Some(BlockType::Thinking),
@@ -139,13 +139,18 @@ impl Db {
             self.conn.execute(
                 "INSERT INTO message_blocks (id, message_id, block_type, content, sequence)
                  VALUES (?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![block_id, id, block.block_type, block.content, block.sequence],
+                rusqlite::params![
+                    block_id,
+                    id,
+                    block.block_type,
+                    block.content,
+                    block.sequence
+                ],
             )?;
             message_blocks.push(MessageBlock {
                 id: block_id,
                 message_id: id.clone(),
-                block_type: BlockType::from_str(block.block_type)
-                    .unwrap_or(BlockType::Text),
+                block_type: BlockType::parse(block.block_type).unwrap_or(BlockType::Text),
                 content: Some(block.content.to_string()),
                 sequence: block.sequence,
                 compressed: false,
@@ -155,7 +160,7 @@ impl Db {
         Ok(Message {
             id,
             session_id: msg.session_id.to_string(),
-            role: Role::from_str(msg.role).unwrap_or(Role::User),
+            role: Role::parse(msg.role).unwrap_or(Role::User),
             content: msg.content.map(|s| s.to_string()),
             model_id: msg.model_id.map(|s| s.to_string()),
             provider_name: msg.provider_name.map(|s| s.to_string()),
@@ -216,7 +221,7 @@ impl Db {
             messages.push(Message {
                 id: r.0,
                 session_id: r.1,
-                role: Role::from_str(&r.2).unwrap_or(Role::User),
+                role: Role::parse(&r.2).unwrap_or(Role::User),
                 content: r.3,
                 model_id: r.4,
                 provider_name: r.5,
@@ -257,7 +262,7 @@ impl Db {
             blocks.push(MessageBlock {
                 id: r.0,
                 message_id: r.1,
-                block_type: BlockType::from_str(&r.2).unwrap_or(BlockType::Text),
+                block_type: BlockType::parse(&r.2).unwrap_or(BlockType::Text),
                 content: r.3,
                 sequence: r.4,
                 compressed: r.5,

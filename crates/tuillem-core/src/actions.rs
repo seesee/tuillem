@@ -16,24 +16,53 @@ pub enum Action {
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    SessionCreated { id: String, title: String },
-    SessionSelected { id: String },
-    SessionDeleted { id: String },
-    SessionRenamed { id: String, title: String },
-    SessionsLoaded { sessions: Vec<SessionSummary> },
-    MessagesLoaded { messages: Vec<MessageView> },
-    StreamDelta { text: String },
-    ThinkingDelta { text: String },
-    StreamDone { message_id: String },
-    ResponseError { error: String },
-    SearchResults { results: Vec<SearchResultView> },
+    SessionCreated {
+        id: String,
+        title: String,
+    },
+    SessionSelected {
+        id: String,
+    },
+    SessionDeleted {
+        id: String,
+    },
+    SessionRenamed {
+        id: String,
+        title: String,
+    },
+    SessionsLoaded {
+        sessions: Vec<SessionSummary>,
+    },
+    MessagesLoaded {
+        messages: Vec<MessageView>,
+    },
+    StreamDelta {
+        text: String,
+    },
+    ThinkingDelta {
+        text: String,
+    },
+    StreamDone {
+        message_id: String,
+    },
+    ResponseError {
+        error: String,
+    },
+    SearchResults {
+        results: Vec<SearchResultView>,
+    },
     ToolCallRequested {
         tool_name: String,
         input: serde_json::Value,
         requires_confirm: bool,
     },
-    ToolCallResult { output: String },
-    ModelSwitched { provider: String, model: String },
+    ToolCallResult {
+        output: String,
+    },
+    ModelSwitched {
+        provider: String,
+        model: String,
+    },
 }
 
 #[derive(Debug, Clone)]

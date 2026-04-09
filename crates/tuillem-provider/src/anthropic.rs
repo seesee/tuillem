@@ -2,9 +2,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use reqwest::Client;
 
-use crate::{
-    ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta,
-};
+use crate::{ChatRequest, ChatResponseStream, ModelInfo, Provider, ProviderError, StreamDelta};
 
 pub struct AnthropicProvider {
     client: Client,
@@ -90,8 +88,7 @@ impl Provider for AnthropicProvider {
                             match event_type {
                                 Some("content_block_delta") => {
                                     if let Some(delta) = event.get("delta") {
-                                        let delta_type =
-                                            delta.get("type").and_then(|t| t.as_str());
+                                        let delta_type = delta.get("type").and_then(|t| t.as_str());
                                         match delta_type {
                                             Some("text_delta") => {
                                                 if let Some(text) =
@@ -102,9 +99,8 @@ impl Provider for AnthropicProvider {
                                                 }
                                             }
                                             Some("thinking_delta") => {
-                                                if let Some(thinking) = delta
-                                                    .get("thinking")
-                                                    .and_then(|t| t.as_str())
+                                                if let Some(thinking) =
+                                                    delta.get("thinking").and_then(|t| t.as_str())
                                                 {
                                                     deltas.push(StreamDelta::Thinking(
                                                         thinking.to_string(),

@@ -28,9 +28,7 @@ impl Highlighter {
 
         let mut result = Vec::new();
         for line in code.lines() {
-            let ranges = h
-                .highlight_line(line, &self.syntax_set)
-                .unwrap_or_default();
+            let ranges = h.highlight_line(line, &self.syntax_set).unwrap_or_default();
             let spans: Vec<Span<'static>> = ranges
                 .into_iter()
                 .map(|(style, text)| {

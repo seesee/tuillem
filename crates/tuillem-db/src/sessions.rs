@@ -52,9 +52,7 @@ impl Db {
                 ))
             })
             .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => {
-                    DbError::NotFound(format!("session {id}"))
-                }
+                rusqlite::Error::QueryReturnedNoRows => DbError::NotFound(format!("session {id}")),
                 other => DbError::Sqlite(other),
             })?;
 
@@ -125,10 +123,9 @@ impl Db {
     }
 
     pub fn delete_session(&self, id: &str) -> Result<(), DbError> {
-        let rows = self.conn.execute(
-            "DELETE FROM sessions WHERE id = ?1",
-            rusqlite::params![id],
-        )?;
+        let rows = self
+            .conn
+            .execute("DELETE FROM sessions WHERE id = ?1", rusqlite::params![id])?;
         if rows == 0 {
             return Err(DbError::NotFound(format!("session {id}")));
         }
