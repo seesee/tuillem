@@ -10,7 +10,9 @@ tuillem-markdown = { path = "../tuillem-markdown" }
 ratatui = "0.30"
 crossterm = "0.29"
 tokio = { workspace = true }
+anyhow = { workspace = true }
 unicode-width = "0.2"
+tempfile = "3"
 
 [dev-dependencies]
 insta = "1"

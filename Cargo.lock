@@ -2917,9 +2917,11 @@ dependencies = [
 name = "tuillem-tui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "crossterm",
  "insta",
  "ratatui",
+ "tempfile",
  "tokio",
  "tuillem-config",
  "tuillem-core",
