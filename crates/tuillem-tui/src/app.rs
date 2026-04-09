@@ -191,6 +191,14 @@ impl App {
     pub fn apply_event(&mut self, event: &Event) {
         self.state.apply_event(event);
 
+        // Update sidebar content matches from search results
+        if let Event::SearchResults { results } = event {
+            let ids: std::collections::HashSet<String> =
+                results.iter().map(|r| r.session_id.clone()).collect();
+            self.sidebar.content_match_ids = Some(ids);
+            self.sidebar.selected = 0;
+        }
+
         // Rebuild input history when messages are loaded
         if let Event::MessagesLoaded { messages } = event {
             self.input_history = messages
@@ -320,15 +328,18 @@ impl App {
                 KeyCode::Esc => {
                     self.sidebar.search_focused = false;
                     self.sidebar.search_input.clear();
+                    self.sidebar.content_match_ids = None;
                 }
                 KeyCode::Enter => {
                     self.sidebar.search_focused = false;
                 }
                 KeyCode::Backspace => {
                     self.sidebar.search_input.pop();
+                    self.trigger_search();
                 }
                 KeyCode::Char(c) => {
                     self.sidebar.search_input.push(c);
+                    self.trigger_search();
                 }
                 _ => {}
             }
@@ -567,6 +578,17 @@ impl App {
             selected: current_idx,
             kind: PopupKind::Provider,
         });
+    }
+
+    fn trigger_search(&mut self) {
+        if self.sidebar.search_input.is_empty() {
+            self.sidebar.content_match_ids = None;
+        } else {
+            let _ = self.action_tx.send(Action::Search {
+                query: self.sidebar.search_input.clone(),
+            });
+        }
+        self.sidebar.selected = 0;
     }
 
     fn history_prev(&mut self) {

@@ -15,6 +15,8 @@ pub struct Sidebar {
     pub scroll_offset: usize,
     pub search_input: String,
     pub search_focused: bool,
+    /// Session IDs that matched an FTS content search (None = no search active)
+    pub content_match_ids: Option<std::collections::HashSet<String>>,
 }
 
 impl Sidebar {
@@ -24,10 +26,12 @@ impl Sidebar {
             scroll_offset: 0,
             search_input: String::new(),
             search_focused: false,
+            content_match_ids: None,
         }
     }
 
-    /// Filter sessions by search query (case-insensitive match on title or tags).
+    /// Filter sessions by search query.
+    /// Matches on title, tags (client-side), AND conversation content (via FTS results).
     pub fn filtered_sessions<'a>(&self, sessions: &'a [SessionSummary]) -> Vec<&'a SessionSummary> {
         if self.search_input.is_empty() {
             sessions.iter().collect()
@@ -36,8 +40,15 @@ impl Sidebar {
             sessions
                 .iter()
                 .filter(|s| {
-                    s.title.to_lowercase().contains(&query)
-                        || s.tags.iter().any(|t| t.to_lowercase().contains(&query))
+                    // Title or tag match (client-side)
+                    let title_match = s.title.to_lowercase().contains(&query)
+                        || s.tags.iter().any(|t| t.to_lowercase().contains(&query));
+                    // Content match (from FTS results)
+                    let content_match = self
+                        .content_match_ids
+                        .as_ref()
+                        .is_some_and(|ids| ids.contains(&s.id));
+                    title_match || content_match
                 })
                 .collect()
         }
