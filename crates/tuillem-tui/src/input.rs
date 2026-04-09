@@ -3,7 +3,7 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 
 use crate::theme::Theme;
@@ -49,13 +49,10 @@ impl Input {
                 format!(" {} ", current_model),
                 Style::default().fg(theme.thinking_fg),
             ),
-            Span::styled(" Enter:send ", Style::default().fg(theme.thinking_fg)),
             Span::styled(
-                "Shift+Enter:newline ",
+                " Enter:send  S-Enter:newline  C-e:editor  C-n:new  C-m:model  C-p:provider  C-c:quit ",
                 Style::default().fg(theme.thinking_fg),
             ),
-            Span::styled("Ctrl+E:editor ", Style::default().fg(theme.thinking_fg)),
-            Span::styled("Ctrl+C:quit ", Style::default().fg(theme.thinking_fg)),
         ]);
 
         let block = Block::default()
@@ -71,31 +68,43 @@ impl Input {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        if self.content.is_empty() && !self.focused {
-            let placeholder = Paragraph::new(Span::styled(
+        let display = if self.content.is_empty() {
+            Paragraph::new(Span::styled(
                 "Type a message...",
                 Style::default().fg(theme.thinking_fg),
-            ));
-            frame.render_widget(placeholder, inner);
+            ))
         } else {
-            let display_text = if self.content.is_empty() {
-                Paragraph::new(Span::styled(
-                    "Type a message...",
-                    Style::default().fg(theme.thinking_fg),
-                ))
-            } else {
-                Paragraph::new(self.content.as_str().to_owned())
-                    .style(Style::default().fg(theme.fg))
-            };
-            frame.render_widget(display_text, inner);
-        }
+            Paragraph::new(self.content.as_str().to_owned())
+                .style(Style::default().fg(theme.fg))
+                .wrap(Wrap { trim: false })
+        };
+        frame.render_widget(display, inner);
 
-        // Show cursor
+        // Show cursor — compute position accounting for wrapping
         if self.focused && inner.width > 0 && inner.height > 0 {
-            let cursor_x = inner.x + self.cursor_pos as u16;
-            let cursor_y = inner.y;
-            if cursor_x < inner.x + inner.width {
-                frame.set_cursor_position((cursor_x, cursor_y));
+            let text_before_cursor = &self.content[..self.cursor_pos];
+            let wrap_width = inner.width as usize;
+            if wrap_width > 0 {
+                // Count how many visual lines the text before cursor spans
+                let mut x = 0usize;
+                let mut y = 0u16;
+                for ch in text_before_cursor.chars() {
+                    if ch == '\n' {
+                        x = 0;
+                        y += 1;
+                    } else {
+                        x += 1;
+                        if x > wrap_width {
+                            x = 1;
+                            y += 1;
+                        }
+                    }
+                }
+                let cursor_x = inner.x + x as u16;
+                let cursor_y = inner.y + y;
+                if cursor_x < inner.x + inner.width && cursor_y < inner.y + inner.height {
+                    frame.set_cursor_position((cursor_x, cursor_y));
+                }
             }
         }
     }
@@ -117,7 +126,6 @@ impl Input {
 
     pub fn backspace(&mut self) {
         if self.cursor_pos > 0 {
-            // Find the previous character boundary
             let prev = self.content[..self.cursor_pos]
                 .char_indices()
                 .last()
@@ -223,12 +231,10 @@ mod tests {
         input.move_left();
         assert_eq!(input.cursor_pos, 4);
 
-        // Left at 0 stays at 0
         input.move_home();
         input.move_left();
         assert_eq!(input.cursor_pos, 0);
 
-        // Right at end stays at end
         input.move_end();
         input.move_right();
         assert_eq!(input.cursor_pos, 5);

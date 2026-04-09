@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span, Text},
     widgets::Paragraph,
@@ -44,6 +44,7 @@ impl Conversation {
         error: Option<&str>,
         theme: &Theme,
     ) {
+        let content_width = area.width.saturating_sub(2) as usize; // leave 1 char margin each side
         let mut lines: Vec<Line<'static>> = Vec::new();
 
         // Model indicator at top
@@ -68,12 +69,20 @@ impl Conversation {
             };
 
             let role_style = if is_user {
-                theme.user_message_style().add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD)
             } else {
-                theme.assistant_message_style().add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD)
             };
 
-            lines.push(Line::from(Span::styled(role_label, role_style)));
+            if is_user {
+                lines.push(Line::from(Span::styled(role_label, role_style)).alignment(Alignment::Right));
+            } else {
+                lines.push(Line::from(Span::styled(role_label, role_style)));
+            }
 
             // Thinking blocks
             for block in &msg.blocks {
@@ -109,9 +118,45 @@ impl Conversation {
 
             // Message content
             if let Some(ref content) = msg.content {
-                let rendered = tuillem_markdown::render_markdown(content);
-                for line in rendered.lines {
-                    lines.push(line);
+                if is_user {
+                    // User messages: right-aligned, wrapped manually
+                    for text_line in content.lines() {
+                        if text_line.is_empty() {
+                            lines.push(Line::from(""));
+                        } else {
+                            for wrapped in wrap_text(text_line, content_width) {
+                                lines.push(
+                                    Line::from(Span::styled(
+                                        wrapped,
+                                        Style::default().fg(theme.fg),
+                                    ))
+                                    .alignment(Alignment::Right),
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    // Assistant messages: left-aligned, rendered as markdown with wrapping
+                    let rendered = tuillem_markdown::render_markdown(content);
+                    for line in rendered.lines {
+                        // Wrap long lines
+                        let line_len: usize = line.spans.iter().map(|s| s.content.len()).sum();
+                        if line_len > content_width && content_width > 0 {
+                            // Simple wrap: collect all text, re-wrap, apply first span's style
+                            let full_text: String =
+                                line.spans.iter().map(|s| s.content.to_string()).collect();
+                            let style = if line.spans.is_empty() {
+                                Style::default()
+                            } else {
+                                line.spans[0].style
+                            };
+                            for wrapped in wrap_text(&full_text, content_width) {
+                                lines.push(Line::from(Span::styled(wrapped, style)));
+                            }
+                        } else {
+                            lines.push(line);
+                        }
+                    }
                 }
             }
 
@@ -130,31 +175,57 @@ impl Conversation {
 
         // Streaming content
         if is_streaming {
+            // Always show a throbber when streaming
+            let throbber_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+            let tick = (std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                / 100) as usize;
+            let throbber = throbber_chars[tick % throbber_chars.len()];
+
             if !streaming_thinking.is_empty() {
-                lines.push(Line::from(Span::styled(
-                    " [thinking...] ",
-                    theme.thinking_style().add_modifier(Modifier::SLOW_BLINK),
-                )));
-                for line in streaming_thinking.lines() {
-                    lines.push(Line::from(Span::styled(
-                        format!("  {}", line),
-                        theme.thinking_style(),
-                    )));
-                }
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        format!(" {} Thinking... ", throbber),
+                        Style::default()
+                            .fg(theme.warning)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]));
             }
 
             if !streaming_text.is_empty() {
+                // Render and wrap streaming text
                 let rendered = tuillem_markdown::render_markdown(streaming_text);
                 for line in rendered.lines {
-                    lines.push(line);
+                    let line_len: usize = line.spans.iter().map(|s| s.content.len()).sum();
+                    if line_len > content_width && content_width > 0 {
+                        let full_text: String =
+                            line.spans.iter().map(|s| s.content.to_string()).collect();
+                        let style = if line.spans.is_empty() {
+                            Style::default()
+                        } else {
+                            line.spans[0].style
+                        };
+                        for wrapped in wrap_text(&full_text, content_width) {
+                            lines.push(Line::from(Span::styled(wrapped, style)));
+                        }
+                    } else {
+                        lines.push(line);
+                    }
                 }
             }
 
             if streaming_text.is_empty() && streaming_thinking.is_empty() {
-                lines.push(Line::from(Span::styled(
-                    " Waiting for response...",
-                    theme.thinking_style().add_modifier(Modifier::SLOW_BLINK),
-                )));
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        format!(" {} Waiting for response...", throbber),
+                        Style::default()
+                            .fg(theme.thinking_fg)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                ]));
             }
         }
 
@@ -213,4 +284,37 @@ impl Default for Conversation {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Word-wrap text to fit within `max_width` characters.
+fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
+    if max_width == 0 {
+        return vec![text.to_string()];
+    }
+    let mut result = Vec::new();
+    let mut current_line = String::new();
+    let mut current_len = 0;
+
+    for word in text.split_whitespace() {
+        let word_len = word.len();
+        if current_len == 0 {
+            current_line = word.to_string();
+            current_len = word_len;
+        } else if current_len + 1 + word_len <= max_width {
+            current_line.push(' ');
+            current_line.push_str(word);
+            current_len += 1 + word_len;
+        } else {
+            result.push(current_line);
+            current_line = word.to_string();
+            current_len = word_len;
+        }
+    }
+    if !current_line.is_empty() {
+        result.push(current_line);
+    }
+    if result.is_empty() {
+        result.push(String::new());
+    }
+    result
 }

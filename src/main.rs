@@ -103,7 +103,18 @@ async fn main() -> Result<()> {
     let state = tuillem_core::AppState::new(default_provider.clone(), default_model.clone());
 
     // 11. Build App with state, theme, action_tx, editor command from config
-    let app = tuillem_tui::app::App::new(state, theme, action_tx, config.editor.clone());
+    let available_models: Vec<(String, Vec<String>)> = config
+        .providers
+        .iter()
+        .map(|p| (p.name.clone(), p.models.clone()))
+        .collect();
+    let app = tuillem_tui::app::App::new(
+        state,
+        theme,
+        action_tx,
+        config.editor.clone(),
+        available_models,
+    );
 
     // 12. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
     debug!("Starting coordinator with provider='{}', model='{}'", default_provider, default_model);

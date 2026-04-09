@@ -10,7 +10,10 @@ use crate::{conversation::Conversation, input::Input, sidebar::Sidebar, theme::T
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +21,21 @@ pub enum Focus {
     Sidebar,
     Conversation,
     Input,
+}
+
+/// A simple selection popup for models or providers.
+#[derive(Debug, Clone)]
+pub struct SelectionPopup {
+    pub title: String,
+    pub items: Vec<String>,
+    pub selected: usize,
+    pub kind: PopupKind,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PopupKind {
+    Model,
+    Provider,
 }
 
 pub struct App {
@@ -30,6 +48,8 @@ pub struct App {
     pub action_tx: mpsc::UnboundedSender<Action>,
     pub should_quit: bool,
     pub editor_command: String,
+    pub popup: Option<SelectionPopup>,
+    pub available_models: Vec<(String, Vec<String>)>, // (provider_name, [model_ids])
 }
 
 impl App {
@@ -38,6 +58,7 @@ impl App {
         theme: Theme,
         action_tx: mpsc::UnboundedSender<Action>,
         editor_command: String,
+        available_models: Vec<(String, Vec<String>)>,
     ) -> Self {
         Self {
             state,
@@ -49,6 +70,8 @@ impl App {
             action_tx,
             should_quit: false,
             editor_command,
+            popup: None,
+            available_models,
         }
     }
 
@@ -61,10 +84,10 @@ impl App {
             .constraints([Constraint::Length(30), Constraint::Min(1)])
             .split(size);
 
-        // Right panel: conversation | input (3 lines)
+        // Right panel: conversation | input (5 lines)
         let v_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(1), Constraint::Length(3)])
+            .constraints([Constraint::Min(1), Constraint::Length(5)])
             .split(h_chunks[1]);
 
         self.sidebar
@@ -89,6 +112,62 @@ impl App {
             self.state.is_streaming,
             &self.theme,
         );
+
+        // Draw popup on top if active
+        if let Some(ref popup) = self.popup {
+            self.draw_popup(frame, size, popup);
+        }
+    }
+
+    fn draw_popup(&self, frame: &mut Frame, area: Rect, popup: &SelectionPopup) {
+        let popup_width = 50u16.min(area.width.saturating_sub(10));
+        let popup_height = (popup.items.len() as u16 + 2).min(area.height.saturating_sub(6));
+        let x = (area.width.saturating_sub(popup_width)) / 2;
+        let y = (area.height.saturating_sub(popup_height)) / 2;
+        let popup_area = Rect::new(x, y, popup_width, popup_height);
+
+        frame.render_widget(Clear, popup_area);
+
+        let items: Vec<ListItem> = popup
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                let style = if i == popup.selected {
+                    Style::default()
+                        .fg(self.theme.accent)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(self.theme.fg)
+                };
+                let marker = if i == popup.selected { "▸ " } else { "  " };
+                ListItem::new(Line::from(Span::styled(
+                    format!("{}{}", marker, item),
+                    style,
+                )))
+            })
+            .collect();
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(self.theme.accent))
+            .title(Line::from(Span::styled(
+                format!(" {} ", popup.title),
+                Style::default()
+                    .fg(self.theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            )))
+            .title_bottom(Line::from(Span::styled(
+                " j/k:select  Enter:confirm  Esc:cancel ",
+                Style::default().fg(self.theme.thinking_fg),
+            )))
+            .style(Style::default().bg(self.theme.bg));
+
+        let mut list_state = ListState::default();
+        list_state.select(Some(popup.selected));
+
+        let list = List::new(items).block(block);
+        frame.render_stateful_widget(list, popup_area, &mut list_state);
     }
 
     pub fn apply_event(&mut self, event: &Event) {
@@ -107,6 +186,12 @@ impl App {
     }
 
     pub fn handle_key_event(&mut self, key: KeyEvent) {
+        // Handle popup keys first
+        if self.popup.is_some() {
+            self.handle_popup_key(key);
+            return;
+        }
+
         // Global bindings
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             match key.code {
@@ -119,6 +204,16 @@ impl App {
                     let _ = self.action_tx.send(Action::CreateSession {
                         title: "New Chat".to_string(),
                     });
+                    self.focus = Focus::Input;
+                    self.update_focus_state();
+                    return;
+                }
+                KeyCode::Char('m') => {
+                    self.open_model_popup();
+                    return;
+                }
+                KeyCode::Char('p') => {
+                    self.open_provider_popup();
                     return;
                 }
                 _ => {}
@@ -311,6 +406,106 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    fn handle_popup_key(&mut self, key: KeyEvent) {
+        let popup = match &mut self.popup {
+            Some(p) => p,
+            None => return,
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.popup = None;
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                if popup.selected + 1 < popup.items.len() {
+                    popup.selected += 1;
+                }
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                popup.selected = popup.selected.saturating_sub(1);
+            }
+            KeyCode::Enter => {
+                let selected_item = popup.items[popup.selected].clone();
+                let kind = popup.kind.clone();
+                self.popup = None;
+
+                match kind {
+                    PopupKind::Model => {
+                        let _ = self.action_tx.send(Action::SwitchModel {
+                            provider: self.state.current_provider.clone(),
+                            model: selected_item,
+                        });
+                    }
+                    PopupKind::Provider => {
+                        // Switch provider and use its first model
+                        if let Some((_, models)) = self
+                            .available_models
+                            .iter()
+                            .find(|(name, _)| *name == selected_item)
+                        {
+                            let model = models.first().cloned().unwrap_or_default();
+                            let _ = self.action_tx.send(Action::SwitchModel {
+                                provider: selected_item,
+                                model,
+                            });
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn open_model_popup(&mut self) {
+        // Find models for the current provider
+        let models = self
+            .available_models
+            .iter()
+            .find(|(name, _)| *name == self.state.current_provider)
+            .map(|(_, models)| models.clone())
+            .unwrap_or_default();
+
+        if models.is_empty() {
+            return;
+        }
+
+        let current_idx = models
+            .iter()
+            .position(|m| *m == self.state.current_model)
+            .unwrap_or(0);
+
+        self.popup = Some(SelectionPopup {
+            title: format!("Switch Model ({})", self.state.current_provider),
+            items: models,
+            selected: current_idx,
+            kind: PopupKind::Model,
+        });
+    }
+
+    fn open_provider_popup(&mut self) {
+        let providers: Vec<String> = self
+            .available_models
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect();
+
+        if providers.is_empty() {
+            return;
+        }
+
+        let current_idx = providers
+            .iter()
+            .position(|p| *p == self.state.current_provider)
+            .unwrap_or(0);
+
+        self.popup = Some(SelectionPopup {
+            title: "Switch Provider".to_string(),
+            items: providers,
+            selected: current_idx,
+            kind: PopupKind::Provider,
+        });
     }
 
     fn cycle_focus_forward(&mut self) {
