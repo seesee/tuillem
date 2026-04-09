@@ -582,40 +582,44 @@ impl Coordinator {
         session_id: &str,
         event_tx: &mpsc::UnboundedSender<Event>,
     ) {
-        // Only auto-rename if this is the first assistant response
-        let messages = match self.db.get_session_messages(session_id) {
-            Ok(m) => m,
+        // Check if title needs auto-renaming
+        let session = match self.db.get_session(session_id) {
+            Ok(s) => s,
             Err(e) => {
-                debug!("Auto-rename: failed to load messages: {e}");
+                debug!("Auto-rename: failed to load session: {e}");
                 return;
             }
         };
 
-        // Count assistant messages — only rename on the first one
-        let assistant_count = messages.iter().filter(|m| m.role.as_str() == "assistant").count();
-        if assistant_count != 1 {
-            debug!("Auto-rename: skipping, {} assistant messages (need exactly 1)", assistant_count);
-            return;
-        }
-
-        // Check if title looks auto-generated (from Ctrl+N or truncate_for_title)
-        let session = match self.db.get_session(session_id) {
-            Ok(s) => s,
+        // Only rename sessions with auto-generated titles
+        let title = &session.title;
+        let messages = match self.db.get_session_messages(session_id) {
+            Ok(m) => m,
             Err(_) => return,
         };
-        // Skip if user has manually set a meaningful title (not "New Chat" or first-line truncation)
-        let title = &session.title;
-        let first_user = messages.first().and_then(|m| m.content.as_deref()).unwrap_or("");
+        let first_user = messages
+            .iter()
+            .find(|m| m.role.as_str() == "user")
+            .and_then(|m| m.content.as_deref())
+            .unwrap_or("");
         let is_auto_title = title == "New Chat" || title == truncate_for_title(first_user).as_str();
         if !is_auto_title {
             debug!("Auto-rename: skipping, title '{}' looks user-set", title);
             return;
         }
 
-        // Get the user's first message for context
-        let user_content = first_user;
+        debug!("Auto-rename: title '{}' needs renaming", title);
+
+        // Get context from last user + assistant exchange
+        let user_content = messages
+            .iter()
+            .rev()
+            .find(|m| m.role.as_str() == "user")
+            .and_then(|m| m.content.as_deref())
+            .unwrap_or("");
         let assistant_content = messages
             .iter()
+            .rev()
             .find(|m| m.role.as_str() == "assistant")
             .and_then(|m| m.content.as_deref())
             .unwrap_or("");

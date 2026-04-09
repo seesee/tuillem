@@ -208,10 +208,29 @@ impl MdRenderer {
         let total_width: usize =
             widths.iter().sum::<usize>() + 2 * num_cols + num_cols + 1;
 
-        // If table is too wide, use compact card layout instead
+        // If table is too wide, shrink columns to fit
         if self.max_width > 0 && total_width > self.max_width {
-            self.render_table_compact(lines, headers, rows);
-            return;
+            let available = self.max_width.saturating_sub(num_cols + 1); // borders
+            let padding_total = 2 * num_cols; // 1 space each side per col
+            let content_budget = available.saturating_sub(padding_total);
+
+            if content_budget < num_cols * 3 {
+                // Too narrow even for truncated columns — use card layout
+                self.render_table_compact(lines, headers, rows);
+                return;
+            }
+
+            // Distribute budget proportionally to natural widths
+            let total_natural: usize = widths.iter().sum();
+            if total_natural > 0 {
+                widths = widths
+                    .iter()
+                    .map(|w| {
+                        let share = (*w as f64 / total_natural as f64 * content_budget as f64) as usize;
+                        share.max(3) // minimum 3 chars per column
+                    })
+                    .collect();
+            }
         }
 
         let border_style = Style::default().fg(self.border_color);
@@ -231,7 +250,9 @@ impl MdRenderer {
         let mut header_spans: Vec<Span<'static>> = Vec::new();
         header_spans.push(Span::styled("│".to_string(), border_style));
         for (i, h) in headers.iter().enumerate() {
-            let padded = format!(" {:<width$} ", h, width = widths[i]);
+            let w = widths[i];
+            let truncated = truncate_str(h, w);
+            let padded = format!(" {:<width$} ", truncated, width = w);
             header_spans.push(Span::styled(
                 padded,
                 Style::default().add_modifier(Modifier::BOLD),
@@ -261,7 +282,8 @@ impl MdRenderer {
                 } else {
                     cell.len()
                 };
-                let padded = format!(" {:<width$} ", cell, width = w);
+                let truncated = truncate_str(cell, w);
+                let padded = format!(" {:<width$} ", truncated, width = w);
                 row_spans.push(Span::raw(padded));
                 row_spans.push(Span::styled("│".to_string(), border_style));
             }
@@ -361,6 +383,17 @@ impl MdRenderer {
 impl Default for MdRenderer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn truncate_str(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else if max_len <= 3 {
+        s.chars().take(max_len).collect()
+    } else {
+        let truncated: String = s.chars().take(max_len - 1).collect();
+        format!("{}…", truncated)
     }
 }
 

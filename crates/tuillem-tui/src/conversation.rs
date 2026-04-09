@@ -42,18 +42,26 @@ impl Conversation {
         is_streaming: bool,
         current_model: &str,
         error: Option<&str>,
+        focused: bool,
         theme: &Theme,
     ) {
         let content_width = area.width.saturating_sub(2) as usize; // leave 1 char margin each side
         let mut lines: Vec<Line<'static>> = Vec::new();
 
-        // Model indicator at top
-        lines.push(Line::from(Span::styled(
-            format!(" Model: {} ", current_model),
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        )));
+        // Model indicator at top with focus hint
+        let focus_hint = if focused { " [j/k:scroll  t:thinking  Tab:switch]" } else { "" };
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!(" Model: {} ", current_model),
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                focus_hint.to_string(),
+                Style::default().fg(theme.thinking_fg),
+            ),
+        ]));
         lines.push(Line::from(""));
 
         // Render each message

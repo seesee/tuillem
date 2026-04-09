@@ -92,8 +92,13 @@ impl App {
             .constraints([Constraint::Min(1), Constraint::Length(5)])
             .split(h_chunks[1]);
 
-        self.sidebar
-            .render(frame, h_chunks[0], &self.state.sessions, &self.theme);
+        self.sidebar.render(
+            frame,
+            h_chunks[0],
+            &self.state.sessions,
+            self.focus == Focus::Sidebar,
+            &self.theme,
+        );
 
         self.conversation.render(
             frame,
@@ -104,6 +109,7 @@ impl App {
             self.state.is_streaming,
             &self.state.current_model,
             self.state.error.as_deref(),
+            self.focus == Focus::Conversation,
             &self.theme,
         );
 
@@ -236,15 +242,19 @@ impl App {
             }
         }
 
-        // Tab / Shift+Tab cycle focus
-        if key.code == KeyCode::Tab {
-            if key.modifiers.contains(KeyModifiers::SHIFT) {
-                self.cycle_focus_backward();
-            } else {
+        // Tab / Shift+Tab / BackTab cycle focus
+        match key.code {
+            KeyCode::Tab => {
                 self.cycle_focus_forward();
+                self.update_focus_state();
+                return;
             }
-            self.update_focus_state();
-            return;
+            KeyCode::BackTab => {
+                self.cycle_focus_backward();
+                self.update_focus_state();
+                return;
+            }
+            _ => {}
         }
 
         // Escape returns to input

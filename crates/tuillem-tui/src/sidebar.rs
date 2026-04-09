@@ -48,11 +48,29 @@ impl Sidebar {
         frame: &mut Frame,
         area: Rect,
         sessions: &[SessionSummary],
+        focused: bool,
         theme: &Theme,
     ) {
+        let border_style = if focused {
+            Style::default().fg(theme.accent)
+        } else {
+            theme.border_style()
+        };
+        let title = if focused {
+            Line::from(Span::styled(
+                " Sessions [Tab] ",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            ))
+        } else {
+            Line::from(Span::styled(
+                " Sessions ",
+                Style::default().fg(theme.thinking_fg),
+            ))
+        };
         let block = Block::default()
             .borders(Borders::RIGHT)
-            .border_style(theme.border_style())
+            .border_style(border_style)
+            .title_top(title)
             .style(theme.sidebar_style());
 
         let inner = block.inner(area);
