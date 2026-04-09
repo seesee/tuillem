@@ -204,32 +204,37 @@ impl MdRenderer {
             }
         }
 
-        // Total width: sum of (col_width + 2 padding) + (num_cols + 1) borders
-        let total_width: usize =
-            widths.iter().sum::<usize>() + 2 * num_cols + num_cols + 1;
+        // Rendered width: each col = content_width + 2 (padding " x ") + 1 (border │)
+        // Plus leading border │, so total = sum(widths) + 3*num_cols + 1
+        let overhead = 3 * num_cols + 1;
 
-        // If table is too wide, shrink columns to fit
-        if self.max_width > 0 && total_width > self.max_width {
-            let available = self.max_width.saturating_sub(num_cols + 1); // borders
-            let padding_total = 2 * num_cols; // 1 space each side per col
-            let content_budget = available.saturating_sub(padding_total);
+        if self.max_width > 0 {
+            let content_budget = self.max_width.saturating_sub(overhead);
 
             if content_budget < num_cols * 3 {
-                // Too narrow even for truncated columns — use card layout
                 self.render_table_compact(lines, headers, rows);
                 return;
             }
 
-            // Distribute budget proportionally to natural widths
             let total_natural: usize = widths.iter().sum();
-            if total_natural > 0 {
+            if total_natural > content_budget {
+                // Shrink columns proportionally to fit
                 widths = widths
                     .iter()
                     .map(|w| {
                         let share = (*w as f64 / total_natural as f64 * content_budget as f64) as usize;
-                        share.max(3) // minimum 3 chars per column
+                        share.max(3)
                     })
                     .collect();
+
+                // Hard clamp: if rounding pushed us over, trim the widest column
+                while widths.iter().sum::<usize>() > content_budget {
+                    if let Some(max_idx) = widths.iter().enumerate().max_by_key(|(_, w)| *w).map(|(i, _)| i) {
+                        widths[max_idx] = widths[max_idx].saturating_sub(1);
+                    } else {
+                        break;
+                    }
+                }
             }
         }
 
