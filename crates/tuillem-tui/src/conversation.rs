@@ -292,7 +292,7 @@ impl Default for Conversation {
     }
 }
 
-/// Word-wrap text to fit within `max_width` characters.
+/// Word-wrap text to fit within `max_width` display columns.
 fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
     if max_width == 0 {
         return vec![text.to_string()];
@@ -302,7 +302,7 @@ fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
     let mut current_len = 0;
 
     for word in text.split_whitespace() {
-        let word_len = word.len();
+        let word_len = word.chars().count();
         if current_len == 0 {
             current_line = word.to_string();
             current_len = word_len;

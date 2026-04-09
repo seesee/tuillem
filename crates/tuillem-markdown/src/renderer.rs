@@ -1,6 +1,5 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use unicode_width::UnicodeWidthStr;
 
 use crate::highlight::Highlighter;
 use crate::parser::{InlineElement, MdElement};
