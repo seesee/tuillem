@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use tracing::{debug, warn};
 use tokio::sync::mpsc;
@@ -51,6 +54,9 @@ pub struct App {
     pub popup: Option<SelectionPopup>,
     pub available_models: Vec<(String, Vec<String>)>, // (provider_name, [model_ids])
     pub needs_redraw: bool,
+    pub cancel_flag: Arc<AtomicBool>,
+    pub input_history: Vec<String>,
+    pub history_index: Option<usize>, // None = not browsing history
 }
 
 impl App {
@@ -60,6 +66,7 @@ impl App {
         action_tx: mpsc::UnboundedSender<Action>,
         editor_command: String,
         available_models: Vec<(String, Vec<String>)>,
+        cancel_flag: Arc<AtomicBool>,
     ) -> Self {
         Self {
             state,
@@ -74,6 +81,9 @@ impl App {
             popup: None,
             available_models,
             needs_redraw: false,
+            cancel_flag,
+            input_history: Vec::new(),
+            history_index: None,
         }
     }
 
@@ -181,6 +191,16 @@ impl App {
     pub fn apply_event(&mut self, event: &Event) {
         self.state.apply_event(event);
 
+        // Rebuild input history when messages are loaded
+        if let Event::MessagesLoaded { messages } = event {
+            self.input_history = messages
+                .iter()
+                .filter(|m| m.role == "user")
+                .filter_map(|m| m.content.clone())
+                .collect();
+            self.history_index = None;
+        }
+
         // Auto-scroll on streaming and message events
         match event {
             Event::StreamStarted
@@ -257,8 +277,13 @@ impl App {
             _ => {}
         }
 
-        // Escape returns to input
+        // Escape: cancel streaming if active, otherwise return to input
         if key.code == KeyCode::Esc {
+            if self.state.is_streaming {
+                debug!("Escape pressed — cancelling stream");
+                self.cancel_flag.store(true, Ordering::Relaxed);
+                return;
+            }
             if self.sidebar.search_focused {
                 self.sidebar.search_focused = false;
                 self.sidebar.search_input.clear();
@@ -398,6 +423,8 @@ impl App {
                     let content = self.input.take_content();
                     if !content.trim().is_empty() {
                         self.state.error = None;
+                        self.input_history.push(content.clone());
+                        self.history_index = None;
                         debug!("Sending Action::SendMessage, content length={}", content.len());
                         if let Err(e) = self.action_tx.send(Action::SendMessage { content }) {
                             warn!("Failed to send action to coordinator: {e}");
@@ -408,6 +435,14 @@ impl App {
             }
             KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.open_external_editor();
+            }
+            KeyCode::Up => {
+                self.history_prev();
+                return;
+            }
+            KeyCode::Down => {
+                self.history_next();
+                return;
             }
             KeyCode::Char(c) => {
                 self.input.insert_char(c);
@@ -532,6 +567,35 @@ impl App {
             selected: current_idx,
             kind: PopupKind::Provider,
         });
+    }
+
+    fn history_prev(&mut self) {
+        if self.input_history.is_empty() {
+            return;
+        }
+        let new_idx = match self.history_index {
+            None => self.input_history.len() - 1,
+            Some(0) => 0,
+            Some(i) => i - 1,
+        };
+        self.history_index = Some(new_idx);
+        self.input.set_content(self.input_history[new_idx].clone());
+    }
+
+    fn history_next(&mut self) {
+        match self.history_index {
+            None => {}
+            Some(i) => {
+                if i + 1 < self.input_history.len() {
+                    self.history_index = Some(i + 1);
+                    self.input.set_content(self.input_history[i + 1].clone());
+                } else {
+                    // Past the end — clear to empty
+                    self.history_index = None;
+                    self.input.set_content(String::new());
+                }
+            }
+        }
     }
 
     fn cycle_focus_forward(&mut self) {

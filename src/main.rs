@@ -102,7 +102,19 @@ async fn main() -> Result<()> {
     // 10. Build AppState with default provider/model
     let state = tuillem_core::AppState::new(default_provider.clone(), default_model.clone());
 
-    // 11. Build App with state, theme, action_tx, editor command from config
+    // 11. Create coordinator and get cancel flag before building App
+    debug!("Starting coordinator with provider='{}', model='{}'", default_provider, default_model);
+    let coordinator = tuillem_core::Coordinator::new(
+        db,
+        providers,
+        plugin_host,
+        default_provider,
+        default_model,
+        config.defaults.system_prompt.clone(),
+    );
+    let cancel_flag = coordinator.cancel_flag();
+
+    // 12. Build App
     let available_models: Vec<(String, Vec<String>)> = config
         .providers
         .iter()
@@ -114,18 +126,10 @@ async fn main() -> Result<()> {
         action_tx,
         config.editor.clone(),
         available_models,
+        cancel_flag,
     );
 
-    // 12. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
-    debug!("Starting coordinator with provider='{}', model='{}'", default_provider, default_model);
-    let coordinator = tuillem_core::Coordinator::new(
-        db,
-        providers,
-        plugin_host,
-        default_provider,
-        default_model,
-        config.defaults.system_prompt.clone(),
-    );
+    // 13. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()

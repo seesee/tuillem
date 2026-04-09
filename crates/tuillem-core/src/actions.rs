@@ -7,6 +7,7 @@ pub enum Action {
     AddTag { session_id: String, tag: String },
     RemoveTag { session_id: String, tag: String },
     SendMessage { content: String },
+    CancelStream,
     RegenerateLastResponse,
     SwitchModel { provider: String, model: String },
     Search { query: String },

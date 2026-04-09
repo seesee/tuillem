@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -19,6 +21,7 @@ pub struct Coordinator {
     current_model: String,
     system_prompt: Option<String>,
     active_session_id: Option<String>,
+    cancel_flag: Arc<AtomicBool>,
 }
 
 impl Coordinator {
@@ -38,7 +41,13 @@ impl Coordinator {
             current_model: default_model,
             system_prompt,
             active_session_id: None,
+            cancel_flag: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// Get a handle to the cancel flag. Set to true to cancel active streaming.
+    pub fn cancel_flag(&self) -> Arc<AtomicBool> {
+        self.cancel_flag.clone()
     }
 
     pub async fn run(
@@ -152,6 +161,11 @@ impl Coordinator {
                     let session_id = self.active_session_id.clone().unwrap();
                     self.handle_send_message(&session_id, &content, &event_tx)
                         .await;
+                }
+
+                Action::CancelStream => {
+                    debug!("CancelStream received");
+                    self.cancel_flag.store(true, Ordering::Relaxed);
                 }
 
                 Action::RegenerateLastResponse => {
@@ -288,14 +302,21 @@ impl Coordinator {
             }
         };
 
-        // 5. Stream through deltas
+        // 5. Stream through deltas (check cancel flag each iteration)
+        self.cancel_flag.store(false, Ordering::Relaxed);
         let mut full_text = String::new();
         let mut full_thinking = String::new();
         let mut input_tokens: u64 = 0;
         let mut output_tokens: u64 = 0;
         let start = std::time::Instant::now();
+        let mut cancelled = false;
 
         while let Some(result) = stream.next().await {
+            if self.cancel_flag.load(Ordering::Relaxed) {
+                debug!("Stream cancelled by user");
+                cancelled = true;
+                break;
+            }
             match result {
                 Ok(delta) => match delta {
                     StreamDelta::Text(text) => {
@@ -334,6 +355,20 @@ impl Coordinator {
         }
 
         let latency_ms = start.elapsed().as_millis() as i64;
+
+        if cancelled {
+            // Store partial response if we got any text
+            if !full_text.is_empty() {
+                full_text.push_str("\n\n*[response cancelled]*");
+            }
+            let _ = event_tx.send(Event::StreamDone {
+                message_id: String::new(),
+            });
+            if full_text.is_empty() {
+                self.send_messages_loaded(session_id, event_tx);
+                return;
+            }
+        }
 
         // 6. Store assistant message with blocks
         let mut blocks = Vec::new();
@@ -489,6 +524,7 @@ impl Coordinator {
             }
         };
 
+        self.cancel_flag.store(false, Ordering::Relaxed);
         let mut full_text = String::new();
         let mut full_thinking = String::new();
         let mut input_tokens: u64 = 0;
@@ -496,6 +532,12 @@ impl Coordinator {
         let start = std::time::Instant::now();
 
         while let Some(result) = stream.next().await {
+            if self.cancel_flag.load(Ordering::Relaxed) {
+                debug!("Regenerate stream cancelled");
+                let _ = event_tx.send(Event::StreamDone { message_id: String::new() });
+                self.send_messages_loaded(session_id, event_tx);
+                return;
+            }
             match result {
                 Ok(delta) => match delta {
                     StreamDelta::Text(text) => {
