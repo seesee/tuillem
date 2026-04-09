@@ -3,6 +3,7 @@ use ratatui::text::{Line, Span, Text};
 
 use crate::highlight::Highlighter;
 use crate::parser::{InlineElement, MdElement};
+use crate::width;
 
 pub struct MdRenderer {
     highlighter: Highlighter,
@@ -202,10 +203,7 @@ fn inlines_to_plain_text(inlines: &[InlineElement]) -> String {
 }
 
 fn display_width(s: &str) -> usize {
-    // Use chars().count() — on terminals where ambiguous chars are 1 column,
-    // this matches. For CJK wide chars we'd need UnicodeWidthStr but those
-    // are rare in LLM output.
-    s.chars().count()
+    width::terminal_width(s)
 }
 
 /// Compute column widths to fit within max_width.
@@ -328,7 +326,7 @@ fn render_wrapped_row(
         if w == 0 {
             return vec![String::new()];
         }
-        wrap_by_display_width(text, w)
+        width::wrap_to_width(text, w)
     }).collect();
 
     let max_lines = wrapped.iter().map(|w| w.len()).max().unwrap_or(1);
@@ -338,100 +336,12 @@ fn render_wrapped_row(
         spans.push(Span::styled("│".to_string(), border_style));
         for (col, w) in widths.iter().enumerate() {
             let text = wrapped[col].get(line_idx).map(|s| s.as_str()).unwrap_or("");
-            let text_chars = text.chars().count();
-            let pad = w.saturating_sub(text_chars);
-            let mut padded = String::with_capacity(text.len() + pad + 2);
-            padded.push(' ');
-            padded.push_str(text);
-            for _ in 0..pad {
-                padded.push(' ');
-            }
-            padded.push(' ');
+            let padded = width::pad_cell(text, *w);
             spans.push(Span::styled(padded, cell_style));
             spans.push(Span::styled("│".to_string(), border_style));
         }
         lines.push(Line::from(spans));
     }
-}
-
-/// Word-wrap text by unicode display width (not byte length).
-/// textwrap uses byte/char counts which overcounts multi-byte chars.
-fn wrap_by_display_width(text: &str, max_width: usize) -> Vec<String> {
-    if max_width == 0 {
-        return vec![text.to_string()];
-    }
-    if display_width(text) <= max_width {
-        return vec![text.to_string()];
-    }
-
-    let mut result = Vec::new();
-    let mut current = String::new();
-    let mut current_w = 0usize;
-
-    for word in text.split_whitespace() {
-        let word_w = word.chars().count();
-        if current_w == 0 {
-            if word_w > max_width {
-                // Force-break by character
-                let mut line = String::new();
-                let mut line_w = 0;
-                for ch in word.chars() {
-                    let cw = 1usize;
-                    if line_w + cw > max_width && !line.is_empty() {
-                        result.push(line);
-                        line = String::new();
-                        line_w = 0;
-                    }
-                    line.push(ch);
-                    line_w += cw;
-                }
-                if !line.is_empty() {
-                    current = line;
-                    current_w = display_width(&current);
-                }
-            } else {
-                current = word.to_string();
-                current_w = word_w;
-            }
-        } else if current_w + 1 + word_w <= max_width {
-            current.push(' ');
-            current.push_str(word);
-            current_w += 1 + word_w;
-        } else {
-            result.push(current);
-            if word_w > max_width {
-                let mut line = String::new();
-                let mut line_w = 0;
-                for ch in word.chars() {
-                    let cw = 1usize;
-                    if line_w + cw > max_width && !line.is_empty() {
-                        result.push(line);
-                        line = String::new();
-                        line_w = 0;
-                    }
-                    line.push(ch);
-                    line_w += cw;
-                }
-                if !line.is_empty() {
-                    current = line;
-                    current_w = display_width(&current);
-                } else {
-                    current = String::new();
-                    current_w = 0;
-                }
-            } else {
-                current = word.to_string();
-                current_w = word_w;
-            }
-        }
-    }
-    if !current.is_empty() {
-        result.push(current);
-    }
-    if result.is_empty() {
-        result.push(String::new());
-    }
-    result
 }
 
 #[cfg(test)]

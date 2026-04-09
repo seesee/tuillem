@@ -1,6 +1,7 @@
 pub mod highlight;
 pub mod parser;
 pub mod renderer;
+pub mod width;
 
 use ratatui::text::Text;
 

@@ -135,13 +135,8 @@ impl Sidebar {
                     .as_deref()
                     .unwrap_or("")
                     .replace('\n', " ");
-                let max_chars = inner.width.saturating_sub(4) as usize;
-                let preview_truncated = if preview_text.chars().count() > max_chars {
-                    let truncated: String = preview_text.chars().take(max_chars).collect();
-                    format!("{}...", truncated)
-                } else {
-                    preview_text
-                };
+                let max_w = inner.width.saturating_sub(4) as usize;
+                let preview_truncated = tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
 
                 let preview_line = Line::from(Span::styled(
                     format!(" {}", preview_truncated),

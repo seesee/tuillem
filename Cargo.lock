@@ -2947,6 +2947,8 @@ dependencies = [
  "ratatui",
  "syntect",
  "tracing",
+ "unicode-normalization",
+ "unicode-segmentation",
  "unicode-width",
 ]
 

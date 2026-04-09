@@ -133,7 +133,7 @@ impl Conversation {
                         if text_line.is_empty() {
                             lines.push(Line::from(""));
                         } else {
-                            for wrapped in wrap_text(text_line, content_width) {
+                            for wrapped in tuillem_markdown::width::wrap_to_width(text_line, content_width) {
                                 lines.push(
                                     Line::from(Span::styled(
                                         format!(" {} ", wrapped),
@@ -152,11 +152,11 @@ impl Conversation {
                         let first_char = line.spans.first().map(|s| s.content.chars().next());
                         let is_table = matches!(first_char, Some(Some('│' | '┌' | '├' | '└' | '─')));
                         if !is_table && content_width > 0 {
-                            let line_chars: usize = line.spans.iter().map(|s| s.content.chars().count()).sum();
-                            if line_chars > content_width {
+                            let line_w: usize = line.spans.iter().map(|s| tuillem_markdown::width::terminal_width(&s.content)).sum();
+                            if line_w > content_width {
                                 let full_text: String = line.spans.iter().map(|s| s.content.to_string()).collect();
                                 let style = if line.spans.is_empty() { Style::default() } else { line.spans[0].style };
-                                for wrapped in wrap_text(&full_text, content_width) {
+                                for wrapped in tuillem_markdown::width::wrap_to_width(&full_text, content_width) {
                                     lines.push(Line::from(Span::styled(wrapped, style)));
                                 }
                                 continue;
@@ -209,11 +209,11 @@ impl Conversation {
                     let first_char = line.spans.first().map(|s| s.content.chars().next());
                     let is_table = matches!(first_char, Some(Some('│' | '┌' | '├' | '└' | '─')));
                     if !is_table && content_width > 0 {
-                        let line_chars: usize = line.spans.iter().map(|s| s.content.chars().count()).sum();
-                        if line_chars > content_width {
+                        let line_w: usize = line.spans.iter().map(|s| tuillem_markdown::width::terminal_width(&s.content)).sum();
+                        if line_w > content_width {
                             let full_text: String = line.spans.iter().map(|s| s.content.to_string()).collect();
                             let style = if line.spans.is_empty() { Style::default() } else { line.spans[0].style };
-                            for wrapped in wrap_text(&full_text, content_width) {
+                            for wrapped in tuillem_markdown::width::wrap_to_width(&full_text, content_width) {
                                 lines.push(Line::from(Span::styled(wrapped, style)));
                             }
                             continue;
@@ -290,37 +290,4 @@ impl Default for Conversation {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Word-wrap text to fit within `max_width` display columns.
-fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
-    if max_width == 0 {
-        return vec![text.to_string()];
-    }
-    let mut result = Vec::new();
-    let mut current_line = String::new();
-    let mut current_len = 0;
-
-    for word in text.split_whitespace() {
-        let word_len = word.chars().count();
-        if current_len == 0 {
-            current_line = word.to_string();
-            current_len = word_len;
-        } else if current_len + 1 + word_len <= max_width {
-            current_line.push(' ');
-            current_line.push_str(word);
-            current_len += 1 + word_len;
-        } else {
-            result.push(current_line);
-            current_line = word.to_string();
-            current_len = word_len;
-        }
-    }
-    if !current_line.is_empty() {
-        result.push(current_line);
-    }
-    if result.is_empty() {
-        result.push(String::new());
-    }
-    result
 }
