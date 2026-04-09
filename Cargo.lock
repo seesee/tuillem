@@ -2846,10 +2846,12 @@ name = "tuillem-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "futures",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tuillem-config",
  "tuillem-db",
