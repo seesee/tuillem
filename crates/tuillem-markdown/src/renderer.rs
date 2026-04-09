@@ -193,118 +193,104 @@ impl MdRenderer {
         }
 
         let num_cols = headers.len();
+        let overhead = 3 * num_cols + 1; // │ + " " + content + " " per col, plus leading │
 
-        // Measure natural column widths using character count (not byte length)
-        let mut widths: Vec<usize> = headers.iter().map(|h| h.chars().count()).collect();
+        // If we can't fit even minimal columns, use card layout
+        if self.max_width > 0 && self.max_width < overhead + num_cols * 4 {
+            self.render_table_compact(lines, headers, rows);
+            return;
+        }
+
+        // Calculate column widths: short columns keep natural width,
+        // long columns share the remaining space and wrap content.
+        let content_budget = if self.max_width > 0 {
+            self.max_width.saturating_sub(overhead)
+        } else {
+            usize::MAX
+        };
+
+        // Natural widths (by char count)
+        let mut natural: Vec<usize> = headers.iter().map(|h| h.chars().count()).collect();
         for row in rows {
             for (i, cell) in row.iter().enumerate() {
-                if i < widths.len() {
-                    widths[i] = widths[i].max(cell.chars().count());
+                if i < natural.len() {
+                    natural[i] = natural[i].max(cell.chars().count());
                 }
             }
         }
 
-        // Rendered width: each col = content_width + 2 (padding " x ") + 1 (border │)
-        // Plus leading border │, so total = sum(widths) + 3*num_cols + 1
-        let overhead = 3 * num_cols + 1;
-
-        if self.max_width > 0 {
-            let content_budget = self.max_width.saturating_sub(overhead);
-
-            if content_budget < num_cols * 3 {
-                self.render_table_compact(lines, headers, rows);
-                return;
-            }
-
-            let total_natural: usize = widths.iter().sum();
-            if total_natural > content_budget {
-                // Shrink columns proportionally to fit
-                widths = widths
-                    .iter()
-                    .map(|w| {
-                        let share = (*w as f64 / total_natural as f64 * content_budget as f64) as usize;
-                        share.max(3)
-                    })
-                    .collect();
-
-                // Hard clamp: if rounding pushed us over, trim the widest column
-                while widths.iter().sum::<usize>() > content_budget {
-                    if let Some(max_idx) = widths.iter().enumerate().max_by_key(|(_, w)| *w).map(|(i, _)| i) {
-                        widths[max_idx] = widths[max_idx].saturating_sub(1);
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-
+        let widths = fit_columns(&natural, content_budget);
         let border_style = Style::default().fg(self.border_color);
 
-        // Top border: ┌───┬───┐
-        let mut top = String::from("┌");
-        for (i, w) in widths.iter().enumerate() {
-            top.push_str(&"─".repeat(w + 2));
-            if i < num_cols - 1 {
-                top.push('┬');
-            }
-        }
-        top.push('┐');
-        lines.push(Line::from(Span::styled(top, border_style)));
+        // Top border
+        lines.push(Line::from(Span::styled(
+            build_border("┌", "┬", "┐", &widths),
+            border_style,
+        )));
 
-        // Header row
-        let mut header_spans: Vec<Span<'static>> = Vec::new();
-        header_spans.push(Span::styled("│".to_string(), border_style));
-        for (i, h) in headers.iter().enumerate() {
-            let w = widths[i];
-            let truncated = truncate_str(h, w);
-            let padded = format!(" {:<width$} ", truncated, width = w);
-            header_spans.push(Span::styled(
-                padded,
-                Style::default().add_modifier(Modifier::BOLD),
-            ));
-            header_spans.push(Span::styled("│".to_string(), border_style));
-        }
-        lines.push(Line::from(header_spans));
+        // Header row (may wrap)
+        let header_cells: Vec<&str> = headers.iter().map(|h| h.as_str()).collect();
+        self.render_table_row(lines, &header_cells, &widths, border_style, true);
 
-        // Separator: ├───┼───┤
-        let mut sep = String::from("├");
-        for (i, w) in widths.iter().enumerate() {
-            sep.push_str(&"─".repeat(w + 2));
-            if i < num_cols - 1 {
-                sep.push('┼');
-            }
-        }
-        sep.push('┤');
-        lines.push(Line::from(Span::styled(sep, border_style)));
+        // Separator
+        lines.push(Line::from(Span::styled(
+            build_border("├", "┼", "┤", &widths),
+            border_style,
+        )));
 
         // Data rows
         for row in rows {
-            let mut row_spans: Vec<Span<'static>> = Vec::new();
-            row_spans.push(Span::styled("│".to_string(), border_style));
-            for (i, cell) in row.iter().enumerate() {
-                let w = if i < widths.len() {
-                    widths[i]
-                } else {
-                    cell.len()
-                };
-                let truncated = truncate_str(cell, w);
-                let padded = format!(" {:<width$} ", truncated, width = w);
-                row_spans.push(Span::raw(padded));
-                row_spans.push(Span::styled("│".to_string(), border_style));
-            }
-            lines.push(Line::from(row_spans));
+            let cells: Vec<&str> = row.iter().map(|c| c.as_str()).collect();
+            self.render_table_row(lines, &cells, &widths, border_style, false);
         }
 
-        // Bottom border: └───┴───┘
-        let mut bottom = String::from("└");
-        for (i, w) in widths.iter().enumerate() {
-            bottom.push_str(&"─".repeat(w + 2));
-            if i < num_cols - 1 {
-                bottom.push('┴');
+        // Bottom border
+        lines.push(Line::from(Span::styled(
+            build_border("└", "┴", "┘", &widths),
+            border_style,
+        )));
+    }
+
+    /// Render a single table row, wrapping cell content across multiple terminal lines.
+    fn render_table_row(
+        &self,
+        lines: &mut Vec<Line<'static>>,
+        cells: &[&str],
+        widths: &[usize],
+        border_style: Style,
+        bold: bool,
+    ) {
+        let num_cols = widths.len();
+        // Wrap each cell into lines
+        let wrapped: Vec<Vec<String>> = (0..num_cols)
+            .map(|i| {
+                let text = cells.get(i).copied().unwrap_or("");
+                wrap_cell(text, widths[i])
+            })
+            .collect();
+
+        let max_lines = wrapped.iter().map(|w| w.len()).max().unwrap_or(1);
+
+        let cell_style = if bold {
+            Style::default().add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+
+        for line_idx in 0..max_lines {
+            let mut spans: Vec<Span<'static>> = Vec::new();
+            spans.push(Span::styled("│".to_string(), border_style));
+            for (col, w) in widths.iter().enumerate() {
+                let text = wrapped[col]
+                    .get(line_idx)
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+                let padded = format!(" {:<width$} ", text, width = w);
+                spans.push(Span::styled(padded, cell_style));
+                spans.push(Span::styled("│".to_string(), border_style));
             }
+            lines.push(Line::from(spans));
         }
-        bottom.push('┘');
-        lines.push(Line::from(Span::styled(bottom, border_style)));
     }
 
     /// Render a table in compact card layout when it's too wide for the terminal.
@@ -389,6 +375,138 @@ impl Default for MdRenderer {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Build a horizontal border line like ┌───┬───┐
+fn build_border(left: &str, mid: &str, right: &str, widths: &[usize]) -> String {
+    let mut s = left.to_string();
+    for (i, w) in widths.iter().enumerate() {
+        s.push_str(&"─".repeat(w + 2));
+        if i < widths.len() - 1 {
+            s.push_str(mid);
+        }
+    }
+    s.push_str(right);
+    s
+}
+
+/// Fit columns into a budget. Short columns keep natural width, long ones share the rest.
+fn fit_columns(natural: &[usize], budget: usize) -> Vec<usize> {
+    if budget == usize::MAX {
+        return natural.to_vec();
+    }
+
+    let total: usize = natural.iter().sum();
+    if total <= budget {
+        return natural.to_vec();
+    }
+
+    let num_cols = natural.len();
+    // Threshold: columns at or below this width keep their natural size
+    // Start with the median and iterate
+    let mut sorted = natural.to_vec();
+    sorted.sort();
+    let median = sorted.get(num_cols / 2).copied().unwrap_or(10);
+    let threshold = median.min(budget / num_cols);
+
+    let mut widths = vec![0usize; num_cols];
+    let mut remaining_budget = budget;
+    let mut long_cols = Vec::new();
+
+    for (i, &nat) in natural.iter().enumerate() {
+        if nat <= threshold {
+            widths[i] = nat;
+            remaining_budget = remaining_budget.saturating_sub(nat);
+        } else {
+            long_cols.push(i);
+        }
+    }
+
+    // Distribute remaining budget equally among long columns
+    if !long_cols.is_empty() {
+        let per_col = remaining_budget / long_cols.len();
+        let mut leftover = remaining_budget % long_cols.len();
+        for &i in &long_cols {
+            widths[i] = per_col.max(4);
+            if leftover > 0 {
+                widths[i] += 1;
+                leftover -= 1;
+            }
+        }
+    }
+
+    // Final clamp
+    while widths.iter().sum::<usize>() > budget {
+        if let Some(max_idx) = widths.iter().enumerate().max_by_key(|(_, w)| *w).map(|(i, _)| i) {
+            widths[max_idx] = widths[max_idx].saturating_sub(1);
+        } else {
+            break;
+        }
+    }
+
+    widths
+}
+
+/// Wrap text into lines that fit within max_width characters.
+fn wrap_cell(text: &str, max_width: usize) -> Vec<String> {
+    if max_width == 0 {
+        return vec![text.to_string()];
+    }
+    if text.chars().count() <= max_width {
+        return vec![text.to_string()];
+    }
+
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut current_len = 0;
+
+    for word in text.split_whitespace() {
+        let wlen = word.chars().count();
+        if current_len == 0 {
+            // Force-break very long words
+            if wlen > max_width {
+                let mut chars = word.chars();
+                while chars.clone().count() > 0 {
+                    let chunk: String = chars.by_ref().take(max_width).collect();
+                    if chunk.is_empty() {
+                        break;
+                    }
+                    result.push(chunk);
+                }
+            } else {
+                current = word.to_string();
+                current_len = wlen;
+            }
+        } else if current_len + 1 + wlen <= max_width {
+            current.push(' ');
+            current.push_str(word);
+            current_len += 1 + wlen;
+        } else {
+            result.push(current);
+            if wlen > max_width {
+                let mut chars = word.chars();
+                while chars.clone().count() > 0 {
+                    let chunk: String = chars.by_ref().take(max_width).collect();
+                    if chunk.is_empty() {
+                        break;
+                    }
+                    result.push(chunk);
+                }
+                current = String::new();
+                current_len = 0;
+            } else {
+                current = word.to_string();
+                current_len = wlen;
+            }
+        }
+    }
+    if !current.is_empty() {
+        result.push(current);
+    }
+    if result.is_empty() {
+        result.push(String::new());
+    }
+    result
 }
 
 fn truncate_str(s: &str, max_len: usize) -> String {
