@@ -1,0 +1,131 @@
+# tuillem configuration
+# Copy this file to ~/.config/tuillem/config.yaml (or $XDG_CONFIG_HOME/tuillem/config.yaml)
+
+# Editor to use for external editing (defaults to $VISUAL, then $EDITOR, then vi)
+# editor: nvim
+
+# Keybinding preset: vim, emacs, or default
+# keybindings: default
+
+# Active theme name (must match a key in the themes section below)
+# theme: dark
+
+# ---------------------------------------------------------------------------
+# Themes
+# ---------------------------------------------------------------------------
+# Define custom color themes. All color fields are optional.
+# themes:
+#   dark:
+#     bg: "#1e1e2e"
+#     fg: "#cdd6f4"
+#     sidebar_bg: "#181825"
+#     sidebar_fg: "#a6adc8"
+#     sidebar_selected: "#45475a"
+#     user_msg_bg: "#313244"
+#     assistant_msg_bg: "#1e1e2e"
+#     thinking_fg: "#6c7086"
+#     accent: "#89b4fa"
+#     error: "#f38ba8"
+#     success: "#a6e3a1"
+#     warning: "#f9e2af"
+#     border: "#45475a"
+#     code_bg: "#181825"
+#     code_fg: "#cdd6f4"
+#     heading: "#89b4fa"
+#     link: "#74c7ec"
+#     tag: "#cba6f7"
+#   light:
+#     bg: "#eff1f5"
+#     fg: "#4c4f69"
+#     accent: "#1e66f5"
+
+# ---------------------------------------------------------------------------
+# Providers
+# ---------------------------------------------------------------------------
+providers:
+  - name: anthropic
+    provider_type: anthropic
+    api_key: "${ANTHROPIC_API_KEY}"  # or paste your key directly
+    default_model: claude-sonnet-4-20250514
+    models:
+      - claude-sonnet-4-20250514
+      - claude-3-haiku-20240307
+
+  # - name: openai
+  #   provider_type: openai
+  #   api_key: "${OPENAI_API_KEY}"
+  #   default_model: gpt-4o
+  #   models:
+  #     - gpt-4o
+  #     - gpt-4o-mini
+
+  # - name: openrouter
+  #   provider_type: openrouter
+  #   api_key: "${OPENROUTER_API_KEY}"
+  #   default_model: anthropic/claude-sonnet-4-20250514
+  #   models:
+  #     - anthropic/claude-sonnet-4-20250514
+  #     - google/gemini-pro-1.5
+
+  # - name: ollama
+  #   provider_type: ollama
+  #   base_url: http://localhost:11434
+  #   default_model: llama3
+  #   models:
+  #     - llama3
+  #     - mistral
+  #     - codellama
+
+  # LM Studio uses the openai-compatible API
+  # - name: lmstudio
+  #   provider_type: openai
+  #   api_key: "lm-studio"
+  #   base_url: http://localhost:1234/v1
+  #   default_model: local-model
+  #   models:
+  #     - local-model
+
+# ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+defaults:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  # system_prompt: "You are a helpful assistant."
+
+# ---------------------------------------------------------------------------
+# Tools
+# ---------------------------------------------------------------------------
+# Custom tools the assistant can invoke.
+# tools:
+#   - name: ripgrep
+#     description: "Search files using ripgrep"
+#     command: "rg --json"
+#     timeout: "30s"
+#     confirm: false
+#     env: {}
+#
+#   - name: run_tests
+#     description: "Run the project test suite"
+#     command: "cargo test"
+#     timeout: "120s"
+#     confirm: true
+#     env:
+#       RUST_BACKTRACE: "1"
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+# Path to the SQLite database for conversation history.
+# Defaults to the XDG data directory (~/.local/share/tuillem/tuillem.db).
+# database:
+#   path: /path/to/tuillem.db
+
+# ---------------------------------------------------------------------------
+# UI
+# ---------------------------------------------------------------------------
+ui:
+  sidebar_width: 30       # Width of the conversation sidebar in columns
+  show_thinking: false     # Show the model's thinking/reasoning tokens
+  show_token_usage: true   # Display token usage after each response
+  mouse: true              # Enable mouse support in the terminal
