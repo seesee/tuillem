@@ -312,11 +312,7 @@ fn render_wrapped_row(
         if w == 0 {
             return vec![String::new()];
         }
-        let options = textwrap::Options::new(w)
-            .word_separator(textwrap::WordSeparator::AsciiSpace)
-            .break_words(true);
-        let result: Vec<String> = textwrap::wrap(text, options).into_iter().map(|cow| cow.into_owned()).collect();
-        if result.is_empty() { vec![String::new()] } else { result }
+        wrap_by_display_width(text, w)
     }).collect();
 
     let max_lines = wrapped.iter().map(|w| w.len()).max().unwrap_or(1);
@@ -334,6 +330,86 @@ fn render_wrapped_row(
         }
         lines.push(Line::from(spans));
     }
+}
+
+/// Word-wrap text by unicode display width (not byte length).
+/// textwrap uses byte/char counts which overcounts multi-byte chars.
+fn wrap_by_display_width(text: &str, max_width: usize) -> Vec<String> {
+    if max_width == 0 {
+        return vec![text.to_string()];
+    }
+    if display_width(text) <= max_width {
+        return vec![text.to_string()];
+    }
+
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut current_w = 0usize;
+
+    for word in text.split_whitespace() {
+        let word_w = display_width(word);
+        if current_w == 0 {
+            if word_w > max_width {
+                // Force-break by character
+                let mut line = String::new();
+                let mut line_w = 0;
+                for ch in word.chars() {
+                    let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+                    if line_w + cw > max_width && !line.is_empty() {
+                        result.push(line);
+                        line = String::new();
+                        line_w = 0;
+                    }
+                    line.push(ch);
+                    line_w += cw;
+                }
+                if !line.is_empty() {
+                    current = line;
+                    current_w = display_width(&current);
+                }
+            } else {
+                current = word.to_string();
+                current_w = word_w;
+            }
+        } else if current_w + 1 + word_w <= max_width {
+            current.push(' ');
+            current.push_str(word);
+            current_w += 1 + word_w;
+        } else {
+            result.push(current);
+            if word_w > max_width {
+                let mut line = String::new();
+                let mut line_w = 0;
+                for ch in word.chars() {
+                    let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+                    if line_w + cw > max_width && !line.is_empty() {
+                        result.push(line);
+                        line = String::new();
+                        line_w = 0;
+                    }
+                    line.push(ch);
+                    line_w += cw;
+                }
+                if !line.is_empty() {
+                    current = line;
+                    current_w = display_width(&current);
+                } else {
+                    current = String::new();
+                    current_w = 0;
+                }
+            } else {
+                current = word.to_string();
+                current_w = word_w;
+            }
+        }
+    }
+    if !current.is_empty() {
+        result.push(current);
+    }
+    if result.is_empty() {
+        result.push(String::new());
+    }
+    result
 }
 
 #[cfg(test)]
