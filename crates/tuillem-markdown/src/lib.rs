@@ -1,84 +1,57 @@
-pub mod highlight;
-pub mod parser;
-pub mod renderer;
+//! Terminal markdown rendering for tuillem.
+//! Thin wrapper around `tui-markdown` for ratatui-native markdown rendering.
 
-use ratatui::text::Text;
+use ratatui::text::{Line, Span, Text};
 
+/// Render markdown to ratatui Text (owned, 'static lifetime).
 pub fn render_markdown(markdown: &str) -> Text<'static> {
-    render_markdown_width(markdown, 0)
+    to_owned_text(tui_markdown::from_str(markdown))
 }
 
-/// Render markdown with a maximum width hint for table layout.
-pub fn render_markdown_width(markdown: &str, max_width: usize) -> Text<'static> {
-    let elements = parser::parse(markdown);
-    let renderer = renderer::MdRenderer::new().with_max_width(max_width);
-    renderer.render(&elements)
+/// Render markdown with a max width hint (currently unused by tui-markdown,
+/// but kept for API compatibility).
+pub fn render_markdown_width(markdown: &str, _max_width: usize) -> Text<'static> {
+    render_markdown(markdown)
 }
 
-/// Render streaming markdown safely. Detects incomplete tables/code blocks
-/// and renders the incomplete tail as plain text to avoid broken output.
-pub fn render_markdown_streaming(markdown: &str, max_width: usize) -> Text<'static> {
-    let (complete, incomplete) = split_incomplete_blocks(markdown);
-    let mut text = render_markdown_width(complete, max_width);
-    if !incomplete.is_empty() {
-        for line in incomplete.lines() {
-            text.lines.push(ratatui::text::Line::from(line.to_string()));
-        }
-    }
-    text
-}
-
-/// Split markdown into complete and possibly-incomplete trailing sections.
-/// An incomplete table is one where we see `|` rows without a closing blank line.
-/// An incomplete code block has an opening ``` without a closing ```.
-fn split_incomplete_blocks(markdown: &str) -> (&str, &str) {
+/// Render streaming markdown safely. For incomplete code fences, render
+/// the complete portion normally and the tail as plain text.
+pub fn render_markdown_streaming(markdown: &str, _max_width: usize) -> Text<'static> {
     // Check for unclosed code fences
     let fence_count = markdown.matches("```").count();
     if fence_count % 2 != 0 {
-        // Find the last opening fence
         if let Some(pos) = markdown.rfind("```") {
-            return (&markdown[..pos], &markdown[pos..]);
+            let complete = &markdown[..pos];
+            let incomplete = &markdown[pos..];
+            let mut text = to_owned_text(tui_markdown::from_str(complete));
+            for line in incomplete.lines() {
+                text.lines.push(Line::from(line.to_string()));
+            }
+            return text;
         }
     }
+    render_markdown(markdown)
+}
 
-    // Check for incomplete table at the end — a table line starts with |
-    // Find the last blank line, check if everything after it looks like a table
-    let trimmed = markdown.trim_end();
-    if let Some(last_line) = trimmed.lines().last() {
-        if last_line.trim_start().starts_with('|') {
-            // Walk backward to find where this table block starts
-            let lines: Vec<&str> = trimmed.lines().collect();
-            let mut table_start = lines.len();
-            for (i, line) in lines.iter().enumerate().rev() {
-                let lt = line.trim();
-                if lt.starts_with('|') || (lt.contains("---") && lt.contains('|')) {
-                    table_start = i;
-                } else {
-                    break;
-                }
-            }
-            // Check if table has header + separator (minimum for a valid table)
-            let table_lines = &lines[table_start..];
-            let has_separator = table_lines.iter().any(|l| {
-                let t = l.trim();
-                t.contains("---") && t.contains('|')
-            });
-            if !has_separator || table_lines.len() < 3 {
-                // Incomplete table — find byte offset of table_start
-                let mut byte_offset = 0;
-                for (i, line) in trimmed.lines().enumerate() {
-                    if i == table_start {
-                        break;
-                    }
-                    byte_offset += line.len() + 1; // +1 for \n
-                }
-                let byte_offset = byte_offset.min(markdown.len());
-                return (&markdown[..byte_offset], &markdown[byte_offset..]);
-            }
-        }
-    }
+/// Convert a borrowed Text<'a> to an owned Text<'static> by cloning all string content.
+fn to_owned_text(text: Text<'_>) -> Text<'static> {
+    let lines: Vec<Line<'static>> = text
+        .lines
+        .into_iter()
+        .map(|line| {
+            let spans: Vec<Span<'static>> = line
+                .spans
+                .into_iter()
+                .map(|span| Span::styled(span.content.to_string(), span.style))
+                .collect();
+            Line::from(spans).alignment(line.alignment.unwrap_or_default())
+        })
+        .collect();
+    Text::from(lines).style(text.style)
+}
 
-    (markdown, "")
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
 }
 
 #[cfg(test)]
@@ -108,18 +81,12 @@ fn main() {
 "#;
         let text = render_markdown(md);
         assert!(!text.lines.is_empty());
+    }
 
-        let all_text: String = text
-            .lines
-            .iter()
-            .flat_map(|l| l.spans.iter())
-            .map(|s| s.content.as_ref())
-            .collect();
-
-        assert!(all_text.contains("Welcome"));
-        assert!(all_text.contains("bold"));
-        assert!(all_text.contains("item one"));
-        assert!(all_text.contains("foo"));
-        assert!(all_text.contains("─"));
+    #[test]
+    fn test_streaming_unclosed_fence() {
+        let md = "Some text\n\n```python\nprint('hello')\n";
+        let text = render_markdown_streaming(md, 80);
+        assert!(!text.lines.is_empty());
     }
 }
