@@ -33,14 +33,45 @@ impl MdRenderer {
         for element in elements {
             match element {
                 MdElement::Heading(level, text) => {
-                    let prefix = "#".repeat(*level as usize);
-                    let content = format!("{} {}", prefix, text);
-                    lines.push(Line::from(Span::styled(
-                        content,
-                        Style::default()
-                            .fg(self.heading_color)
-                            .add_modifier(Modifier::BOLD),
-                    )));
+                    let (prefix, style) = match level {
+                        1 => (
+                            "═══ ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                        ),
+                        2 => (
+                            "── ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        3 => (
+                            "─ ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::BOLD | Modifier::ITALIC),
+                        ),
+                        4 => (
+                            "  ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        _ => (
+                            "  ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
+                    };
+                    lines.push(Line::from(vec![
+                        Span::styled(
+                            prefix.to_string(),
+                            Style::default().fg(self.border_color),
+                        ),
+                        Span::styled(text.clone(), style),
+                    ]));
                     lines.push(Line::from(""));
                 }
 
@@ -303,7 +334,8 @@ mod tests {
             .iter()
             .map(|s| s.content.as_ref())
             .collect();
-        assert!(content.contains("# Hello"));
+        assert!(content.contains("Hello"));
+        assert!(content.contains("═══"));
     }
 
     #[test]

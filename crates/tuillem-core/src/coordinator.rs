@@ -393,23 +393,41 @@ impl Coordinator {
         session_id: &str,
         event_tx: &mpsc::UnboundedSender<Event>,
     ) {
-        // Only rename if there are exactly 2 messages (first user + first assistant)
+        // Only auto-rename if this is the first assistant response
         let messages = match self.db.get_session_messages(session_id) {
             Ok(m) => m,
+            Err(e) => {
+                debug!("Auto-rename: failed to load messages: {e}");
+                return;
+            }
+        };
+
+        // Count assistant messages — only rename on the first one
+        let assistant_count = messages.iter().filter(|m| m.role.as_str() == "assistant").count();
+        if assistant_count != 1 {
+            debug!("Auto-rename: skipping, {} assistant messages (need exactly 1)", assistant_count);
+            return;
+        }
+
+        // Check if title looks auto-generated (from Ctrl+N or truncate_for_title)
+        let session = match self.db.get_session(session_id) {
+            Ok(s) => s,
             Err(_) => return,
         };
-        if messages.len() != 2 {
+        // Skip if user has manually set a meaningful title (not "New Chat" or first-line truncation)
+        let title = &session.title;
+        let first_user = messages.first().and_then(|m| m.content.as_deref()).unwrap_or("");
+        let is_auto_title = title == "New Chat" || title == truncate_for_title(first_user).as_str();
+        if !is_auto_title {
+            debug!("Auto-rename: skipping, title '{}' looks user-set", title);
             return;
         }
 
         // Get the user's first message for context
-        let user_content = messages
-            .first()
-            .and_then(|m| m.content.as_deref())
-            .unwrap_or("");
-
+        let user_content = first_user;
         let assistant_content = messages
-            .get(1)
+            .iter()
+            .find(|m| m.role.as_str() == "assistant")
             .and_then(|m| m.content.as_deref())
             .unwrap_or("");
 

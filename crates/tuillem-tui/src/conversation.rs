@@ -197,8 +197,8 @@ impl Conversation {
             }
 
             if !streaming_text.is_empty() {
-                // Render and wrap streaming text
-                let rendered = tuillem_markdown::render_markdown(streaming_text);
+                // Render and wrap streaming text (handles incomplete tables/code blocks)
+                let rendered = tuillem_markdown::render_markdown_streaming(streaming_text);
                 for line in rendered.lines {
                     let line_len: usize = line.spans.iter().map(|s| s.content.len()).sum();
                     if line_len > content_width && content_width > 0 {
