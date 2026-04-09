@@ -211,6 +211,12 @@ impl App {
                     self.update_focus_state();
                     return;
                 }
+                KeyCode::Char('r') => {
+                    if !self.state.is_streaming {
+                        let _ = self.action_tx.send(Action::RegenerateLastResponse);
+                    }
+                    return;
+                }
                 _ => {}
             }
         }

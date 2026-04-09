@@ -72,6 +72,8 @@ pub struct SessionSummary {
     pub title: String,
     pub updated_at: String,
     pub tags: Vec<String>,
+    pub preview: Option<String>,
+    pub last_model: Option<String>,
 }
 
 #[derive(Debug, Clone)]

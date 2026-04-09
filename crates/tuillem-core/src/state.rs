@@ -41,6 +41,8 @@ impl AppState {
                         title: title.clone(),
                         updated_at: String::new(),
                         tags: Vec::new(),
+                        preview: None,
+                        last_model: None,
                     },
                 );
                 self.active_session_id = Some(id.clone());

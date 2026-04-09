@@ -272,6 +272,15 @@ impl Db {
         Ok(blocks)
     }
 
+    /// Delete a message and its blocks by ID.
+    pub fn delete_message(&self, message_id: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "DELETE FROM messages WHERE id = ?1",
+            rusqlite::params![message_id],
+        )?;
+        Ok(())
+    }
+
     pub fn compress_thinking_blocks(&self, older_than_days: i64) -> Result<usize, DbError> {
         let cutoff = Utc::now() - chrono::Duration::days(older_than_days);
         let cutoff_str = cutoff.to_rfc3339();

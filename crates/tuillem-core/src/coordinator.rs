@@ -50,8 +50,13 @@ impl Coordinator {
         // On startup, load sessions and select the most recent one
         if let Ok(sessions) = self.db.list_sessions() {
             debug!("Loaded {} existing sessions from DB", sessions.len());
-            let summaries: Vec<SessionSummary> =
-                sessions.iter().map(session_to_summary).collect();
+            let summaries: Vec<SessionSummary> = sessions
+                .iter()
+                .map(|s| {
+                    let preview = self.db.get_session_last_message(&s.id).ok().flatten();
+                    session_to_summary(s, preview)
+                })
+                .collect();
             let _ = event_tx.send(Event::SessionsLoaded {
                 sessions: summaries,
             });
@@ -87,6 +92,27 @@ impl Coordinator {
                     self.active_session_id = Some(id.clone());
                     let _ = event_tx.send(Event::SessionSelected { id: id.clone() });
                     self.send_messages_loaded(&id, &event_tx);
+
+                    // Restore the model/provider from session metadata
+                    if let Ok(session) = self.db.get_session(&id) {
+                        if let Some(meta) = &session.metadata {
+                            if let Ok(v) = serde_json::from_str::<serde_json::Value>(meta) {
+                                if let Some(p) = v["provider"].as_str() {
+                                    if self.providers.contains_key(p) {
+                                        self.current_provider = p.to_string();
+                                    }
+                                }
+                                if let Some(m) = v["model"].as_str() {
+                                    self.current_model = m.to_string();
+                                }
+                                debug!("Restored session model: {}:{}", self.current_provider, self.current_model);
+                                let _ = event_tx.send(Event::ModelSwitched {
+                                    provider: self.current_provider.clone(),
+                                    model: self.current_model.clone(),
+                                });
+                            }
+                        }
+                    }
                 }
 
                 Action::DeleteSession { id } => {
@@ -148,7 +174,9 @@ impl Coordinator {
                 }
 
                 Action::RegenerateLastResponse => {
-                    // TODO: implement regeneration
+                    if let Some(session_id) = self.active_session_id.clone() {
+                        self.handle_regenerate(&session_id, &event_tx).await;
+                    }
                 }
 
                 Action::SwitchModel { provider, model } => {
@@ -376,7 +404,14 @@ impl Coordinator {
                 });
                 self.send_messages_loaded(session_id, event_tx);
 
-                // 9. Auto-rename session if this is the first exchange
+                // 9. Save model/provider to session metadata
+                let meta = serde_json::json!({
+                    "provider": self.current_provider,
+                    "model": self.current_model,
+                });
+                let _ = self.db.update_session_metadata(session_id, &meta.to_string());
+
+                // 10. Auto-rename session if this is the first exchange
                 self.maybe_auto_rename_session(session_id, event_tx).await;
             }
             Err(e) => {
@@ -384,6 +419,160 @@ impl Coordinator {
                 let _ = event_tx.send(Event::ResponseError {
                     error: format!("Failed to store response: {e}"),
                 });
+            }
+        }
+    }
+
+    async fn handle_regenerate(
+        &self,
+        session_id: &str,
+        event_tx: &mpsc::UnboundedSender<Event>,
+    ) {
+        // Find the last assistant message and delete it
+        let messages = match self.db.get_session_messages(session_id) {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+
+        // Find last assistant message
+        let last_assistant = messages
+            .iter()
+            .rev()
+            .find(|m| m.role.as_str() == "assistant");
+
+        if let Some(msg) = last_assistant {
+            debug!("Regenerating: deleting last assistant message {}", msg.id);
+            let _ = self.db.delete_message(&msg.id);
+        } else {
+            debug!("Regenerate: no assistant message to delete");
+            return;
+        }
+
+        // Find the last user message content to re-send
+        let last_user_content = messages
+            .iter()
+            .rev()
+            .find(|m| m.role.as_str() == "user")
+            .and_then(|m| m.content.clone());
+
+        if last_user_content.is_none() {
+            return;
+        }
+
+        // Reload messages (without the deleted assistant response)
+        self.send_messages_loaded(session_id, event_tx);
+
+        // Signal streaming start
+        let _ = event_tx.send(Event::StreamStarted);
+
+        // Re-send to the provider (history now ends with the user message)
+        let db_messages = match self.db.get_session_messages(session_id) {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+
+        let chat_messages: Vec<ChatMessage> = db_messages
+            .iter()
+            .filter(|m| m.role.as_str() == "user" || m.role.as_str() == "assistant")
+            .map(|m| ChatMessage {
+                role: m.role.as_str().to_string(),
+                content: m.content.clone().unwrap_or_default(),
+            })
+            .collect();
+
+        let request = ChatRequest {
+            model: self.current_model.clone(),
+            messages: chat_messages,
+            system: self.system_prompt.clone(),
+            max_tokens: None,
+            temperature: None,
+        };
+
+        let provider = match self.providers.get(&self.current_provider) {
+            Some(p) => p,
+            None => {
+                let _ = event_tx.send(Event::ResponseError {
+                    error: format!("Provider '{}' not found", self.current_provider),
+                });
+                return;
+            }
+        };
+
+        let mut stream = match provider.send(request).await {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = event_tx.send(Event::ResponseError {
+                    error: format!("Provider error: {e}"),
+                });
+                return;
+            }
+        };
+
+        let mut full_text = String::new();
+        let mut full_thinking = String::new();
+        let mut input_tokens: u64 = 0;
+        let mut output_tokens: u64 = 0;
+        let start = std::time::Instant::now();
+
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(delta) => match delta {
+                    StreamDelta::Text(text) => {
+                        let _ = event_tx.send(Event::StreamDelta { text: text.clone() });
+                        full_text.push_str(&text);
+                    }
+                    StreamDelta::Thinking(text) => {
+                        let _ = event_tx.send(Event::ThinkingDelta { text: text.clone() });
+                        full_thinking.push_str(&text);
+                    }
+                    StreamDelta::Usage { input_tokens: i, output_tokens: o } => {
+                        input_tokens = i;
+                        output_tokens = o;
+                    }
+                    StreamDelta::Done => break,
+                    _ => {}
+                },
+                Err(e) => {
+                    let _ = event_tx.send(Event::ResponseError {
+                        error: format!("Stream error: {e}"),
+                    });
+                    return;
+                }
+            }
+        }
+
+        let latency_ms = start.elapsed().as_millis() as i64;
+
+        let mut blocks = Vec::new();
+        let mut seq = 0;
+        if !full_text.is_empty() {
+            blocks.push(NewBlock { block_type: "text", content: &full_text, sequence: seq });
+            seq += 1;
+        }
+        if !full_thinking.is_empty() {
+            blocks.push(NewBlock { block_type: "thinking", content: &full_thinking, sequence: seq });
+        }
+        let _ = seq;
+
+        let assistant_msg = NewMessage {
+            session_id,
+            role: "assistant",
+            content: if full_text.is_empty() { None } else { Some(&full_text) },
+            model_id: Some(&self.current_model),
+            provider_name: Some(&self.current_provider),
+            parent_message_id: None,
+        };
+
+        match self.db.create_message(&assistant_msg, &blocks) {
+            Ok(msg) => {
+                if input_tokens > 0 || output_tokens > 0 {
+                    let _ = self.db.update_message_usage(&msg.id, input_tokens as i64, output_tokens as i64, latency_ms);
+                }
+                let _ = event_tx.send(Event::StreamDone { message_id: msg.id });
+                self.send_messages_loaded(session_id, event_tx);
+            }
+            Err(e) => {
+                error!("Failed to store regenerated message: {e}");
             }
         }
     }
@@ -503,12 +692,28 @@ fn truncate_for_title(content: &str) -> String {
     }
 }
 
-fn session_to_summary(s: &tuillem_db::sessions::Session) -> SessionSummary {
+fn session_to_summary(s: &tuillem_db::sessions::Session, preview: Option<String>) -> SessionSummary {
+    // Parse last model from metadata JSON
+    let last_model = s.metadata.as_deref().and_then(|m| {
+        serde_json::from_str::<serde_json::Value>(m)
+            .ok()
+            .and_then(|v| v["model"].as_str().map(|s| s.to_string()))
+    });
+
     SessionSummary {
         id: s.id.clone(),
         title: s.title.clone(),
         updated_at: s.updated_at.to_rfc3339(),
         tags: s.tags.clone(),
+        preview: preview.map(|p| {
+            let trimmed = p.trim();
+            if trimmed.len() > 60 {
+                format!("{}...", &trimmed[..57])
+            } else {
+                trimmed.to_string()
+            }
+        }),
+        last_model,
     }
 }
 

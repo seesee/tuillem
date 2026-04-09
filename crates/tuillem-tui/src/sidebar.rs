@@ -94,22 +94,46 @@ impl Sidebar {
             .iter()
             .enumerate()
             .skip(self.scroll_offset)
-            .take(list_area.height as usize)
+            .take(list_area.height as usize / 2) // 2 lines per item
             .map(|(i, session)| {
-                let mut spans = vec![Span::raw(&session.title)];
-                for tag in &session.tags {
-                    spans.push(Span::raw(" "));
-                    spans.push(Span::styled(
-                        format!("[{}]", tag),
-                        Style::default().fg(theme.tag),
-                    ));
-                }
-                let style = if i == self.selected {
+                let is_selected = i == self.selected;
+                let style = if is_selected {
                     theme.sidebar_selected_style().add_modifier(Modifier::BOLD)
                 } else {
                     theme.sidebar_style()
                 };
-                ListItem::new(Line::from(spans)).style(style)
+
+                let mut title_spans: Vec<Span> = vec![Span::styled(&session.title, style)];
+                for tag in &session.tags {
+                    title_spans.push(Span::raw(" "));
+                    title_spans.push(Span::styled(
+                        format!("[{}]", tag),
+                        Style::default().fg(theme.tag),
+                    ));
+                }
+
+                let preview_text = session
+                    .preview
+                    .as_deref()
+                    .unwrap_or("")
+                    .replace('\n', " ");
+                let preview_truncated = if preview_text.len() > inner.width as usize {
+                    format!("{}...", &preview_text[..inner.width.saturating_sub(4) as usize])
+                } else {
+                    preview_text
+                };
+
+                let preview_line = Line::from(Span::styled(
+                    format!(" {}", preview_truncated),
+                    Style::default().fg(theme.thinking_fg),
+                ));
+
+                ListItem::new(vec![Line::from(title_spans), preview_line])
+                    .style(if is_selected {
+                        Style::default().bg(theme.sidebar_bg)
+                    } else {
+                        Style::default()
+                    })
             })
             .collect();
 
