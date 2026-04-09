@@ -202,8 +202,35 @@ fn inlines_to_plain_text(inlines: &[InlineElement]) -> String {
     s
 }
 
+/// Display width that treats ambiguous-width characters as 2 columns.
+/// Many terminal emulators (especially macOS Terminal, iTerm2) render
+/// chars like "  → • — as 2 columns wide, but unicode-width counts them as 1.
 fn display_width(s: &str) -> usize {
-    UnicodeWidthStr::width(s)
+    s.chars().map(|c| char_display_width(c)).sum()
+}
+
+fn char_display_width(c: char) -> usize {
+    // unicode-width returns 1 for ambiguous chars, but terminals may render them as 2.
+    // Check East Asian Width category for ambiguous chars.
+    let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+    if w >= 2 {
+        return w;
+    }
+    // Treat common "ambiguous" width characters as 2 columns
+    // These are EAW=A (Ambiguous) chars that macOS terminals render wide
+    match c {
+        '\u{2010}'..='\u{2027}' |  // dashes, bullets, leaders
+        '\u{2030}'..='\u{2043}' |  // per mille, prime, bullets
+        '\u{2047}'..='\u{2054}' |  // double question, exclamation marks
+        '\u{2190}'..='\u{21FF}' |  // arrows
+        '\u{2200}'..='\u{22FF}' |  // math operators
+        '\u{2300}'..='\u{23FF}' |  // misc technical
+        '\u{25A0}'..='\u{25FF}' |  // geometric shapes
+        '\u{2600}'..='\u{27BF}' |  // misc symbols, dingbats
+        '\u{2E80}'..='\u{2EFF}' |  // CJK radicals
+        '\u{3000}'..='\u{303F}' => 2, // CJK symbols and punctuation
+        _ => w.max(1),
+    }
 }
 
 /// Compute column widths to fit within max_width.
@@ -368,7 +395,7 @@ fn wrap_by_display_width(text: &str, max_width: usize) -> Vec<String> {
                 let mut line = String::new();
                 let mut line_w = 0;
                 for ch in word.chars() {
-                    let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+                    let cw = char_display_width(ch);
                     if line_w + cw > max_width && !line.is_empty() {
                         result.push(line);
                         line = String::new();
@@ -395,7 +422,7 @@ fn wrap_by_display_width(text: &str, max_width: usize) -> Vec<String> {
                 let mut line = String::new();
                 let mut line_w = 0;
                 for ch in word.chars() {
-                    let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+                    let cw = char_display_width(ch);
                     if line_w + cw > max_width && !line.is_empty() {
                         result.push(line);
                         line = String::new();
