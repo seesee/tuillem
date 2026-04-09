@@ -2911,6 +2911,7 @@ name = "tuillem-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "dirs",
  "futures",
  "serde",
  "serde_json",
@@ -2990,6 +2991,7 @@ dependencies = [
  "crossterm",
  "insta",
  "ratatui",
+ "serde_yaml",
  "tempfile",
  "tokio",
  "tracing",

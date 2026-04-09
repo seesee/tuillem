@@ -9,7 +9,15 @@ use tuillem_core::{
     state::AppState,
 };
 
-use crate::{conversation::Conversation, input::Input, sidebar::Sidebar, theme::Theme};
+use crate::{
+    control::{ControlAction, ControlPanel},
+    conversation::Conversation,
+    help::render_help,
+    input::Input,
+    settings::SettingsPanel,
+    sidebar::Sidebar,
+    theme::Theme,
+};
 
 use ratatui::{
     Frame,
@@ -41,6 +49,15 @@ pub enum PopupKind {
     Provider,
 }
 
+#[derive(Debug, Clone)]
+pub enum Overlay {
+    None,
+    Help,
+    Control(ControlPanel),
+    Settings(SettingsPanel),
+    Selection(SelectionPopup),
+}
+
 pub struct App {
     pub state: AppState,
     pub theme: Theme,
@@ -51,12 +68,19 @@ pub struct App {
     pub action_tx: mpsc::UnboundedSender<Action>,
     pub should_quit: bool,
     pub editor_command: String,
-    pub popup: Option<SelectionPopup>,
+    pub overlay: Overlay,
     pub available_models: Vec<(String, Vec<String>)>, // (provider_name, [model_ids])
     pub needs_redraw: bool,
     pub cancel_flag: Arc<AtomicBool>,
     pub input_history: Vec<String>,
     pub history_index: Option<usize>, // None = not browsing history
+    // Settings-related config values (used to populate settings panel)
+    pub config_theme: String,
+    pub config_keybindings: String,
+    pub config_show_thinking: bool,
+    pub config_show_token_usage: bool,
+    pub config_mouse: bool,
+    pub config_system_prompt: String,
 }
 
 impl App {
@@ -78,12 +102,18 @@ impl App {
             action_tx,
             should_quit: false,
             editor_command,
-            popup: None,
+            overlay: Overlay::None,
             available_models,
             needs_redraw: false,
             cancel_flag,
             input_history: Vec::new(),
             history_index: None,
+            config_theme: "dark".to_string(),
+            config_keybindings: "default".to_string(),
+            config_show_thinking: false,
+            config_show_token_usage: true,
+            config_mouse: true,
+            config_system_prompt: String::new(),
         }
     }
 
@@ -131,13 +161,25 @@ impl App {
             &self.theme,
         );
 
-        // Draw popup on top if active
-        if let Some(ref popup) = self.popup {
-            self.draw_popup(frame, size, popup);
+        // Draw overlay on top if active
+        match &self.overlay {
+            Overlay::None => {}
+            Overlay::Help => {
+                render_help(frame, size, &self.theme);
+            }
+            Overlay::Control(panel) => {
+                panel.render(frame, size, &self.theme);
+            }
+            Overlay::Settings(panel) => {
+                panel.render(frame, size, &self.theme);
+            }
+            Overlay::Selection(popup) => {
+                self.draw_selection_popup(frame, size, popup);
+            }
         }
     }
 
-    fn draw_popup(&self, frame: &mut Frame, area: Rect, popup: &SelectionPopup) {
+    fn draw_selection_popup(&self, frame: &mut Frame, area: Rect, popup: &SelectionPopup) {
         let popup_width = 50u16.min(area.width.saturating_sub(10));
         let popup_height = (popup.items.len() as u16 + 2).min(area.height.saturating_sub(6));
         let x = (area.width.saturating_sub(popup_width)) / 2;
@@ -223,9 +265,9 @@ impl App {
     }
 
     pub fn handle_key_event(&mut self, key: KeyEvent) {
-        // Handle popup keys first
-        if self.popup.is_some() {
-            self.handle_popup_key(key);
+        // Handle overlay keys first
+        if !matches!(self.overlay, Overlay::None) {
+            self.handle_overlay_key(key);
             return;
         }
 
@@ -251,23 +293,26 @@ impl App {
                     }
                     return;
                 }
+                KeyCode::Char('k') => {
+                    self.overlay = Overlay::Control(ControlPanel::new());
+                    return;
+                }
+                KeyCode::Char('s') => {
+                    self.open_settings();
+                    return;
+                }
+                KeyCode::Char('h') => {
+                    self.overlay = Overlay::Help;
+                    return;
+                }
                 _ => {}
             }
         }
 
-        // More Ctrl bindings (these are safe in raw mode)
-        if key.modifiers.contains(KeyModifiers::CONTROL) {
-            match key.code {
-                KeyCode::Char('o') => {
-                    self.open_model_popup();
-                    return;
-                }
-                KeyCode::Char('t') => {
-                    self.open_provider_popup();
-                    return;
-                }
-                _ => {}
-            }
+        // ? opens help when not in input focus
+        if key.code == KeyCode::Char('?') && self.focus != Focus::Input {
+            self.overlay = Overlay::Help;
+            return;
         }
 
         // Tab / Shift+Tab / BackTab cycle focus
@@ -319,6 +364,154 @@ impl App {
                 self.conversation.scroll_down(3);
             }
             _ => {}
+        }
+    }
+
+    fn handle_overlay_key(&mut self, key: KeyEvent) {
+        match &mut self.overlay {
+            Overlay::None => {}
+            Overlay::Help => {
+                if key.code == KeyCode::Esc
+                    || key.code == KeyCode::Char('q')
+                    || key.code == KeyCode::Char('?')
+                    || (key.modifiers.contains(KeyModifiers::CONTROL)
+                        && key.code == KeyCode::Char('h'))
+                {
+                    self.overlay = Overlay::None;
+                }
+            }
+            Overlay::Control(panel) => match key.code {
+                KeyCode::Esc => {
+                    self.overlay = Overlay::None;
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    panel.move_down();
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    panel.move_up();
+                }
+                KeyCode::Enter => {
+                    let action = panel.selected_action();
+                    self.overlay = Overlay::None;
+                    self.execute_control_action(action);
+                }
+                _ => {}
+            },
+            Overlay::Settings(panel) => {
+                if panel.editing {
+                    match key.code {
+                        KeyCode::Esc => {
+                            panel.cancel_edit();
+                        }
+                        KeyCode::Enter => {
+                            panel.confirm_edit();
+                        }
+                        KeyCode::Backspace => {
+                            panel.edit_backspace();
+                        }
+                        KeyCode::Char(c) => {
+                            panel.edit_insert(c);
+                        }
+                        _ => {}
+                    }
+                } else {
+                    match key.code {
+                        KeyCode::Esc => {
+                            self.overlay = Overlay::None;
+                        }
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            panel.move_down();
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            panel.move_up();
+                        }
+                        KeyCode::Enter => {
+                            panel.enter();
+                        }
+                        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            self.save_settings();
+                            self.overlay = Overlay::None;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Overlay::Selection(popup) => match key.code {
+                KeyCode::Esc => {
+                    self.overlay = Overlay::None;
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    if popup.selected + 1 < popup.items.len() {
+                        popup.selected += 1;
+                    }
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    popup.selected = popup.selected.saturating_sub(1);
+                }
+                KeyCode::Enter => {
+                    let selected_item = popup.items[popup.selected].clone();
+                    let kind = popup.kind.clone();
+                    self.overlay = Overlay::None;
+
+                    match kind {
+                        PopupKind::Model => {
+                            let _ = self.action_tx.send(Action::SwitchModel {
+                                provider: self.state.current_provider.clone(),
+                                model: selected_item,
+                            });
+                        }
+                        PopupKind::Provider => {
+                            if let Some((_, models)) = self
+                                .available_models
+                                .iter()
+                                .find(|(name, _)| *name == selected_item)
+                            {
+                                let model = models.first().cloned().unwrap_or_default();
+                                let _ = self.action_tx.send(Action::SwitchModel {
+                                    provider: selected_item,
+                                    model,
+                                });
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            },
+        }
+    }
+
+    fn execute_control_action(&mut self, action: ControlAction) {
+        match action {
+            ControlAction::SwitchModel => {
+                self.open_model_popup();
+            }
+            ControlAction::SwitchProvider => {
+                self.open_provider_popup();
+            }
+            ControlAction::NewConversation => {
+                let _ = self.action_tx.send(Action::CreateSession {
+                    title: "New Chat".to_string(),
+                });
+                self.focus = Focus::Input;
+                self.update_focus_state();
+            }
+            ControlAction::RegenerateResponse => {
+                if !self.state.is_streaming {
+                    let _ = self.action_tx.send(Action::RegenerateLastResponse);
+                }
+            }
+            ControlAction::SaveTranscript => {
+                let _ = self.action_tx.send(Action::SaveTranscript);
+            }
+            ControlAction::OpenInEditor => {
+                self.open_external_editor();
+            }
+            ControlAction::ToggleThinking => {
+                if !self.state.messages.is_empty() {
+                    let idx = self.state.messages.len() - 1;
+                    self.conversation.toggle_thinking(idx);
+                }
+            }
         }
     }
 
@@ -480,56 +673,6 @@ impl App {
         }
     }
 
-    fn handle_popup_key(&mut self, key: KeyEvent) {
-        let popup = match &mut self.popup {
-            Some(p) => p,
-            None => return,
-        };
-
-        match key.code {
-            KeyCode::Esc => {
-                self.popup = None;
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                if popup.selected + 1 < popup.items.len() {
-                    popup.selected += 1;
-                }
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                popup.selected = popup.selected.saturating_sub(1);
-            }
-            KeyCode::Enter => {
-                let selected_item = popup.items[popup.selected].clone();
-                let kind = popup.kind.clone();
-                self.popup = None;
-
-                match kind {
-                    PopupKind::Model => {
-                        let _ = self.action_tx.send(Action::SwitchModel {
-                            provider: self.state.current_provider.clone(),
-                            model: selected_item,
-                        });
-                    }
-                    PopupKind::Provider => {
-                        // Switch provider and use its first model
-                        if let Some((_, models)) = self
-                            .available_models
-                            .iter()
-                            .find(|(name, _)| *name == selected_item)
-                        {
-                            let model = models.first().cloned().unwrap_or_default();
-                            let _ = self.action_tx.send(Action::SwitchModel {
-                                provider: selected_item,
-                                model,
-                            });
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
     fn open_model_popup(&mut self) {
         // Find models for the current provider
         let models = self
@@ -548,7 +691,7 @@ impl App {
             .position(|m| *m == self.state.current_model)
             .unwrap_or(0);
 
-        self.popup = Some(SelectionPopup {
+        self.overlay = Overlay::Selection(SelectionPopup {
             title: format!("Switch Model ({})", self.state.current_provider),
             items: models,
             selected: current_idx,
@@ -572,12 +715,97 @@ impl App {
             .position(|p| *p == self.state.current_provider)
             .unwrap_or(0);
 
-        self.popup = Some(SelectionPopup {
+        self.overlay = Overlay::Selection(SelectionPopup {
             title: "Switch Provider".to_string(),
             items: providers,
             selected: current_idx,
             kind: PopupKind::Provider,
         });
+    }
+
+    fn open_settings(&mut self) {
+        let panel = SettingsPanel::new(
+            &self.state.current_provider,
+            &self.state.current_model,
+            &self.editor_command,
+            &self.config_theme,
+            &self.config_keybindings,
+            self.config_show_thinking,
+            self.config_show_token_usage,
+            self.config_mouse,
+            &self.config_system_prompt,
+        );
+        self.overlay = Overlay::Settings(panel);
+    }
+
+    fn save_settings(&mut self) {
+        // Extract values from the settings panel before closing
+        if let Overlay::Settings(ref panel) = self.overlay {
+            if let Some(v) = panel.get_value("editor") {
+                self.editor_command = v;
+            }
+            if let Some(v) = panel.get_value("theme") {
+                self.config_theme = v;
+            }
+            if let Some(v) = panel.get_value("keybindings") {
+                self.config_keybindings = v;
+            }
+            if let Some(v) = panel.get_value("ui.show_thinking") {
+                self.config_show_thinking = v == "on";
+            }
+            if let Some(v) = panel.get_value("ui.show_token_usage") {
+                self.config_show_token_usage = v == "on";
+            }
+            if let Some(v) = panel.get_value("ui.mouse") {
+                self.config_mouse = v == "on";
+            }
+            if let Some(v) = panel.get_value("defaults.system_prompt") {
+                self.config_system_prompt = if v == "(empty)" {
+                    String::new()
+                } else {
+                    v
+                };
+            }
+            // Write to config file
+            self.write_config_file();
+        }
+    }
+
+    fn write_config_file(&self) {
+        let config_path = tuillem_config::Config::default_path();
+        // Load existing config or create default
+        let mut config = if config_path.exists() {
+            tuillem_config::Config::from_file(&config_path).unwrap_or_default()
+        } else {
+            tuillem_config::Config::default()
+        };
+
+        config.editor = self.editor_command.clone();
+        config.theme = self.config_theme.clone();
+        config.keybindings = match self.config_keybindings.as_str() {
+            "vim" => tuillem_config::KeybindingPreset::Vim,
+            "emacs" => tuillem_config::KeybindingPreset::Emacs,
+            _ => tuillem_config::KeybindingPreset::Default,
+        };
+        config.ui.show_thinking = self.config_show_thinking;
+        config.ui.show_token_usage = self.config_show_token_usage;
+        config.ui.mouse = self.config_mouse;
+        if self.config_system_prompt.is_empty() {
+            config.defaults.system_prompt = None;
+        } else {
+            config.defaults.system_prompt = Some(self.config_system_prompt.clone());
+        }
+
+        if let Ok(yaml) = serde_yaml::to_string(&config) {
+            if let Some(parent) = config_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Err(e) = std::fs::write(&config_path, yaml) {
+                warn!("Failed to write config file: {e}");
+            } else {
+                debug!("Settings saved to {}", config_path.display());
+            }
+        }
     }
 
     fn trigger_search(&mut self) {

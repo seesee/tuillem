@@ -120,7 +120,7 @@ async fn main() -> Result<()> {
         .iter()
         .map(|p| (p.name.clone(), p.models.clone()))
         .collect();
-    let app = tuillem_tui::app::App::new(
+    let mut app = tuillem_tui::app::App::new(
         state,
         theme,
         action_tx,
@@ -128,6 +128,17 @@ async fn main() -> Result<()> {
         available_models,
         cancel_flag,
     );
+    // Pass config values for the settings panel
+    app.config_theme = config.theme.clone();
+    app.config_keybindings = match config.keybindings {
+        tuillem_config::KeybindingPreset::Vim => "vim".to_string(),
+        tuillem_config::KeybindingPreset::Emacs => "emacs".to_string(),
+        tuillem_config::KeybindingPreset::Default => "default".to_string(),
+    };
+    app.config_show_thinking = config.ui.show_thinking;
+    app.config_show_token_usage = config.ui.show_token_usage;
+    app.config_mouse = config.ui.mouse;
+    app.config_system_prompt = config.defaults.system_prompt.clone().unwrap_or_default();
 
     // 13. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
     std::thread::spawn(move || {

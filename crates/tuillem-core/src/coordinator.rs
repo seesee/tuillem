@@ -201,6 +201,12 @@ impl Coordinator {
                     // TODO: handle tool call confirmation
                 }
 
+                Action::SaveTranscript => {
+                    if let Some(ref session_id) = self.active_session_id {
+                        self.handle_save_transcript(session_id);
+                    }
+                }
+
                 Action::Quit => {
                     info!("Quit action received, shutting down coordinator");
                     break;
@@ -693,6 +699,61 @@ impl Coordinator {
             }
             Err(e) => {
                 debug!("Auto-rename failed: {e}");
+            }
+        }
+    }
+
+    fn handle_save_transcript(&self, session_id: &str) {
+        let session = match self.db.get_session(session_id) {
+            Ok(s) => s,
+            Err(e) => {
+                error!("SaveTranscript: failed to load session: {e}");
+                return;
+            }
+        };
+        let messages = match self.db.get_session_messages(session_id) {
+            Ok(m) => m,
+            Err(e) => {
+                error!("SaveTranscript: failed to load messages: {e}");
+                return;
+            }
+        };
+
+        let title_slug: String = session
+            .title
+            .chars()
+            .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+            .collect();
+        let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let filename = format!("tuillem-{}-{}.md", title_slug, timestamp);
+
+        let downloads = dirs::download_dir().unwrap_or_else(|| {
+            dirs::home_dir()
+                .map(|h| h.join("Downloads"))
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+        });
+        let path = downloads.join(&filename);
+
+        let mut content = format!("# {}\n\n", session.title);
+        for m in &messages {
+            let role_label = match m.role.as_str() {
+                "user" => "**User**",
+                "assistant" => "**Assistant**",
+                _ => "**System**",
+            };
+            content.push_str(&format!("## {}\n\n", role_label));
+            if let Some(ref text) = m.content {
+                content.push_str(text);
+                content.push_str("\n\n");
+            }
+        }
+
+        match std::fs::write(&path, &content) {
+            Ok(_) => {
+                info!("Transcript saved to {}", path.display());
+            }
+            Err(e) => {
+                error!("SaveTranscript: failed to write file: {e}");
             }
         }
     }

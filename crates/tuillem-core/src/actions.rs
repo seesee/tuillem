@@ -12,6 +12,7 @@ pub enum Action {
     SwitchModel { provider: String, model: String },
     Search { query: String },
     ConfirmToolCall { approved: bool },
+    SaveTranscript,
     Quit,
 }
 

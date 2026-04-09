@@ -1,6 +1,9 @@
 pub mod app;
+pub mod control;
 pub mod conversation;
+pub mod help;
 pub mod input;
+pub mod settings;
 pub mod sidebar;
 pub mod theme;
 
