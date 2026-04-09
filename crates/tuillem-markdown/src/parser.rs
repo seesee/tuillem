@@ -5,7 +5,10 @@ use comrak::{Arena, Options, parse_document};
 pub enum MdElement {
     Heading(u8, Vec<InlineElement>),
     Paragraph(Vec<InlineElement>),
-    CodeBlock { language: String, code: String },
+    CodeBlock {
+        language: String,
+        code: String,
+    },
     List(Vec<ListItem>),
     OrderedList(Vec<ListItem>),
     BlockQuote(Vec<MdElement>),

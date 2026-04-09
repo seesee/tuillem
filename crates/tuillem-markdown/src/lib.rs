@@ -35,7 +35,7 @@ pub fn render_markdown_streaming(markdown: &str, max_width: usize) -> Text<'stat
 fn split_incomplete_blocks(markdown: &str) -> (&str, &str) {
     // Check for unclosed code fences
     let fence_count = markdown.matches("```").count();
-    if fence_count % 2 != 0 {
+    if !fence_count.is_multiple_of(2) {
         // Find the last opening fence
         if let Some(pos) = markdown.rfind("```") {
             return (&markdown[..pos], &markdown[pos..]);
@@ -45,37 +45,37 @@ fn split_incomplete_blocks(markdown: &str) -> (&str, &str) {
     // Check for incomplete table at the end — a table line starts with |
     // Find the last blank line, check if everything after it looks like a table
     let trimmed = markdown.trim_end();
-    if let Some(last_line) = trimmed.lines().last() {
-        if last_line.trim_start().starts_with('|') {
-            // Walk backward to find where this table block starts
-            let lines: Vec<&str> = trimmed.lines().collect();
-            let mut table_start = lines.len();
-            for (i, line) in lines.iter().enumerate().rev() {
-                let lt = line.trim();
-                if lt.starts_with('|') || (lt.contains("---") && lt.contains('|')) {
-                    table_start = i;
-                } else {
+    if let Some(last_line) = trimmed.lines().last()
+        && last_line.trim_start().starts_with('|')
+    {
+        // Walk backward to find where this table block starts
+        let lines: Vec<&str> = trimmed.lines().collect();
+        let mut table_start = lines.len();
+        for (i, line) in lines.iter().enumerate().rev() {
+            let lt = line.trim();
+            if lt.starts_with('|') || (lt.contains("---") && lt.contains('|')) {
+                table_start = i;
+            } else {
+                break;
+            }
+        }
+        // Check if table has header + separator (minimum for a valid table)
+        let table_lines = &lines[table_start..];
+        let has_separator = table_lines.iter().any(|l| {
+            let t = l.trim();
+            t.contains("---") && t.contains('|')
+        });
+        if !has_separator || table_lines.len() < 3 {
+            // Incomplete table — find byte offset of table_start
+            let mut byte_offset = 0;
+            for (i, line) in trimmed.lines().enumerate() {
+                if i == table_start {
                     break;
                 }
+                byte_offset += line.len() + 1; // +1 for \n
             }
-            // Check if table has header + separator (minimum for a valid table)
-            let table_lines = &lines[table_start..];
-            let has_separator = table_lines.iter().any(|l| {
-                let t = l.trim();
-                t.contains("---") && t.contains('|')
-            });
-            if !has_separator || table_lines.len() < 3 {
-                // Incomplete table — find byte offset of table_start
-                let mut byte_offset = 0;
-                for (i, line) in trimmed.lines().enumerate() {
-                    if i == table_start {
-                        break;
-                    }
-                    byte_offset += line.len() + 1; // +1 for \n
-                }
-                let byte_offset = byte_offset.min(markdown.len());
-                return (&markdown[..byte_offset], &markdown[byte_offset..]);
-            }
+            let byte_offset = byte_offset.min(markdown.len());
+            return (&markdown[..byte_offset], &markdown[byte_offset..]);
         }
     }
 

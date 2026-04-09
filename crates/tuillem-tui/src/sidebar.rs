@@ -70,7 +70,9 @@ impl Sidebar {
         let title = if focused {
             Line::from(Span::styled(
                 " Sessions [Tab] ",
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
             ))
         } else {
             Line::from(Span::styled(
@@ -141,25 +143,21 @@ impl Sidebar {
                     ));
                 }
 
-                let preview_text = session
-                    .preview
-                    .as_deref()
-                    .unwrap_or("")
-                    .replace('\n', " ");
+                let preview_text = session.preview.as_deref().unwrap_or("").replace('\n', " ");
                 let max_w = inner.width.saturating_sub(4) as usize;
-                let preview_truncated = tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
+                let preview_truncated =
+                    tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
 
                 let preview_line = Line::from(Span::styled(
                     format!(" {}", preview_truncated),
                     Style::default().fg(theme.thinking_fg),
                 ));
 
-                ListItem::new(vec![Line::from(title_spans), preview_line])
-                    .style(if is_selected {
-                        Style::default().bg(theme.sidebar_bg)
-                    } else {
-                        Style::default()
-                    })
+                ListItem::new(vec![Line::from(title_spans), preview_line]).style(if is_selected {
+                    Style::default().bg(theme.sidebar_bg)
+                } else {
+                    Style::default()
+                })
             })
             .collect();
 

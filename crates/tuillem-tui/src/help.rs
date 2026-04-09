@@ -132,16 +132,12 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent))
-        .title(Line::from(Span::styled(
-            " Keyboard Shortcuts ",
-            accent,
-        )))
-        .title_bottom(Line::from(Span::styled(
-            " Esc:close ",
-            dim,
-        )))
+        .title(Line::from(Span::styled(" Keyboard Shortcuts ", accent)))
+        .title_bottom(Line::from(Span::styled(" Esc:close ", dim)))
         .style(Style::default().bg(theme.bg));
 
-    let paragraph = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, popup_area);
 }

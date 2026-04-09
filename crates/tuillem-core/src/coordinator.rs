@@ -137,7 +137,11 @@ impl Coordinator {
                 }
 
                 Action::SendMessage { content } => {
-                    debug!("SendMessage: content='{}', active_session={:?}", &content[..content.len().min(50)], self.active_session_id);
+                    debug!(
+                        "SendMessage: content='{}', active_session={:?}",
+                        &content[..content.len().min(50)],
+                        self.active_session_id
+                    );
                     // Auto-create a session if none is active
                     if self.active_session_id.is_none() {
                         let title = truncate_for_title(&content);
@@ -224,7 +228,10 @@ impl Coordinator {
         content: &str,
         event_tx: &mpsc::UnboundedSender<Event>,
     ) {
-        debug!("handle_send_message: session={}, provider={}, model={}", session_id, self.current_provider, self.current_model);
+        debug!(
+            "handle_send_message: session={}, provider={}, model={}",
+            session_id, self.current_provider, self.current_model
+        );
         // 1. Store user message in DB
         let user_msg = NewMessage {
             session_id,
@@ -261,14 +268,19 @@ impl Coordinator {
         };
 
         // 3. Stream the response
-        debug!("Calling provider.send() with {} messages", request.messages.len());
+        debug!(
+            "Calling provider.send() with {} messages",
+            request.messages.len()
+        );
         if let Some(msg_id) = self.stream_response(session_id, request, event_tx).await {
             // 4. Save model/provider to session metadata
             let meta = serde_json::json!({
                 "provider": self.current_provider,
                 "model": self.current_model,
             });
-            let _ = self.db.update_session_metadata(session_id, &meta.to_string());
+            let _ = self
+                .db
+                .update_session_metadata(session_id, &meta.to_string());
 
             // 5. Auto-rename session if this is the first exchange
             let _ = msg_id;
@@ -276,11 +288,7 @@ impl Coordinator {
         }
     }
 
-    async fn handle_regenerate(
-        &self,
-        session_id: &str,
-        event_tx: &mpsc::UnboundedSender<Event>,
-    ) {
+    async fn handle_regenerate(&self, session_id: &str, event_tx: &mpsc::UnboundedSender<Event>) {
         // Find the last assistant message and delete it
         let messages = match self.db.get_session_messages(session_id) {
             Ok(m) => m,
@@ -302,10 +310,7 @@ impl Coordinator {
         }
 
         // Verify there is a user message to regenerate from
-        let has_user = messages
-            .iter()
-            .rev()
-            .any(|m| m.role.as_str() == "user");
+        let has_user = messages.iter().rev().any(|m| m.role.as_str() == "user");
 
         if !has_user {
             return;
@@ -375,9 +380,17 @@ impl Coordinator {
         let provider = match self.providers.get(&self.current_provider) {
             Some(p) => p,
             None => {
-                error!("Provider '{}' not found in providers map (available: {:?})", self.current_provider, self.providers.keys().collect::<Vec<_>>());
+                error!(
+                    "Provider '{}' not found in providers map (available: {:?})",
+                    self.current_provider,
+                    self.providers.keys().collect::<Vec<_>>()
+                );
                 let _ = event_tx.send(Event::ResponseError {
-                    error: format!("Provider '{}' not found (available: {:?})", self.current_provider, self.providers.keys().collect::<Vec<_>>()),
+                    error: format!(
+                        "Provider '{}' not found (available: {:?})",
+                        self.current_provider,
+                        self.providers.keys().collect::<Vec<_>>()
+                    ),
                 });
                 return None;
             }
@@ -640,7 +653,13 @@ impl Coordinator {
         let title_slug: String = session
             .title
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
         let filename = format!("tuillem-{}-{}.md", title_slug, timestamp);
@@ -677,24 +696,26 @@ impl Coordinator {
     }
 
     fn restore_session_model(&mut self, session_id: &str, event_tx: &mpsc::UnboundedSender<Event>) {
-        if let Ok(session) = self.db.get_session(session_id) {
-            if let Some(meta) = &session.metadata {
-                if let Ok(v) = serde_json::from_str::<serde_json::Value>(meta) {
-                    if let Some(p) = v["provider"].as_str() {
-                        if self.providers.contains_key(p) {
-                            self.current_provider = p.to_string();
-                        }
-                    }
-                    if let Some(m) = v["model"].as_str() {
-                        self.current_model = m.to_string();
-                    }
-                    debug!("Restored session model: {}:{}", self.current_provider, self.current_model);
-                    let _ = event_tx.send(Event::ModelSwitched {
-                        provider: self.current_provider.clone(),
-                        model: self.current_model.clone(),
-                    });
-                }
+        if let Ok(session) = self.db.get_session(session_id)
+            && let Some(meta) = &session.metadata
+            && let Ok(v) = serde_json::from_str::<serde_json::Value>(meta)
+        {
+            if let Some(p) = v["provider"].as_str()
+                && self.providers.contains_key(p)
+            {
+                self.current_provider = p.to_string();
             }
+            if let Some(m) = v["model"].as_str() {
+                self.current_model = m.to_string();
+            }
+            debug!(
+                "Restored session model: {}:{}",
+                self.current_provider, self.current_model
+            );
+            let _ = event_tx.send(Event::ModelSwitched {
+                provider: self.current_provider.clone(),
+                model: self.current_model.clone(),
+            });
         }
     }
 
@@ -721,7 +742,10 @@ fn truncate_for_title(content: &str) -> String {
     }
 }
 
-fn session_to_summary(s: &tuillem_db::sessions::Session, preview: Option<String>) -> SessionSummary {
+fn session_to_summary(
+    s: &tuillem_db::sessions::Session,
+    preview: Option<String>,
+) -> SessionSummary {
     // Parse last model from metadata JSON
     let last_model = s.metadata.as_deref().and_then(|m| {
         serde_json::from_str::<serde_json::Value>(m)

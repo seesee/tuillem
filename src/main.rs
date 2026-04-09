@@ -34,15 +34,22 @@ async fn main() -> Result<()> {
         debug!("Config file found, loading...");
         tuillem_config::Config::from_file(&config_path)?
     } else {
-        info!("No config found at {}. Using defaults.", config_path.display());
+        info!(
+            "No config found at {}. Using defaults.",
+            config_path.display()
+        );
         eprintln!(
             "No config found at {}. Using defaults.",
             config_path.display()
         );
-        tuillem_config::Config::from_file(&config_path)?
+        tuillem_config::Config::from_yaml("{}")?
     };
-    debug!("Config loaded: {} providers, default provider={:?}, default model={:?}",
-        config.providers.len(), config.defaults.provider, config.defaults.model);
+    debug!(
+        "Config loaded: {} providers, default provider={:?}, default model={:?}",
+        config.providers.len(),
+        config.defaults.provider,
+        config.defaults.model
+    );
 
     // 3. Expand ~ in database path
     let db_path = shellexpand::tilde(&config.database.path).to_string();
@@ -56,10 +63,17 @@ async fn main() -> Result<()> {
     // 5. Initialize providers from config; log warnings for failures but don't abort
     let mut providers: HashMap<String, Box<dyn tuillem_provider::Provider>> = HashMap::new();
     for pc in &config.providers {
-        debug!("Initializing provider '{}' (type={:?}, base_url={:?})", pc.name, pc.provider_type, pc.base_url);
+        debug!(
+            "Initializing provider '{}' (type={:?}, base_url={:?})",
+            pc.name, pc.provider_type, pc.base_url
+        );
         match tuillem_provider::create_provider(pc) {
             Ok(p) => {
-                info!("Provider '{}' initialized with {} models", pc.name, p.models().len());
+                info!(
+                    "Provider '{}' initialized with {} models",
+                    pc.name,
+                    p.models().len()
+                );
                 providers.insert(pc.name.clone(), p);
             }
             Err(e) => {
@@ -103,7 +117,10 @@ async fn main() -> Result<()> {
     let state = tuillem_core::AppState::new(default_provider.clone(), default_model.clone());
 
     // 11. Create coordinator and get cancel flag before building App
-    debug!("Starting coordinator with provider='{}', model='{}'", default_provider, default_model);
+    debug!(
+        "Starting coordinator with provider='{}', model='{}'",
+        default_provider, default_model
+    );
     let coordinator = tuillem_core::Coordinator::new(
         db,
         providers,

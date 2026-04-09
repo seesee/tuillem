@@ -60,6 +60,12 @@ pub struct ControlPanel {
     pub selected: usize,
 }
 
+impl Default for ControlPanel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ControlPanel {
     pub fn new() -> Self {
         Self { selected: 0 }
@@ -81,8 +87,7 @@ impl ControlPanel {
 
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let popup_width = 45u16.min(area.width.saturating_sub(10));
-        let popup_height =
-            (ControlAction::ALL.len() as u16 + 2).min(area.height.saturating_sub(6));
+        let popup_height = (ControlAction::ALL.len() as u16 + 2).min(area.height.saturating_sub(6));
         let x = (area.width.saturating_sub(popup_width)) / 2;
         let y = (area.height.saturating_sub(popup_height)) / 2;
         let popup_area = Rect::new(x, y, popup_width, popup_height);
@@ -105,8 +110,7 @@ impl ControlPanel {
                 let hint = action.hint();
                 let label = action.label();
                 let inner_width = popup_width.saturating_sub(2) as usize;
-                let pad = inner_width
-                    .saturating_sub(marker.len() + label.len() + hint.len());
+                let pad = inner_width.saturating_sub(marker.len() + label.len() + hint.len());
                 let line = if hint.is_empty() {
                     Line::from(Span::styled(format!("{}{}", marker, label), style))
                 } else {

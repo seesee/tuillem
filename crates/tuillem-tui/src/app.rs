@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
-use tracing::{debug, warn};
 use tokio::sync::mpsc;
+use tracing::{debug, warn};
 use tuillem_core::{
     actions::{Action, Event},
     state::AppState,
@@ -154,6 +154,7 @@ impl App {
             self.state.is_streaming,
             &self.state.current_model,
             self.state.error.as_deref(),
+            self.state.status_message.as_deref(),
             self.focus == Focus::Conversation,
             &self.theme,
         );
@@ -181,13 +182,21 @@ impl App {
             Overlay::Selection(popup) => {
                 self.draw_selection_popup(frame, size, popup);
             }
-            Overlay::CodeBlockSelect { items, selected, .. } => {
+            Overlay::CodeBlockSelect {
+                items, selected, ..
+            } => {
                 self.draw_code_block_popup(frame, size, items, *selected);
             }
         }
     }
 
-    fn draw_code_block_popup(&self, frame: &mut Frame, area: Rect, items: &[String], selected: usize) {
+    fn draw_code_block_popup(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        items: &[String],
+        selected: usize,
+    ) {
         let popup_width = 60u16.min(area.width.saturating_sub(10));
         let popup_height = (items.len() as u16 + 2).min(area.height.saturating_sub(6));
         let x = (area.width.saturating_sub(popup_width)) / 2;
@@ -201,12 +210,17 @@ impl App {
             .enumerate()
             .map(|(i, item)| {
                 let style = if i == selected {
-                    Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(self.theme.accent)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(self.theme.fg)
                 };
                 let marker = if i == selected { "▸ " } else { "  " };
-                ListItem::new(Line::from(Span::styled(format!("{}{}", marker, item), style)))
+                ListItem::new(Line::from(Span::styled(
+                    format!("{}{}", marker, item),
+                    style,
+                )))
             })
             .collect();
 
@@ -215,7 +229,9 @@ impl App {
             .border_style(Style::default().fg(self.theme.accent))
             .title(Line::from(Span::styled(
                 " Copy Code Block ",
-                Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(self.theme.accent)
+                    .add_modifier(Modifier::BOLD),
             )))
             .title_bottom(Line::from(Span::styled(
                 " j/k:select  Enter:copy  Esc:cancel ",
@@ -543,7 +559,11 @@ impl App {
                 }
                 _ => {}
             },
-            Overlay::CodeBlockSelect { items: _, blocks, selected } => match key.code {
+            Overlay::CodeBlockSelect {
+                items: _,
+                blocks,
+                selected,
+            } => match key.code {
                 KeyCode::Esc => {
                     self.overlay = Overlay::None;
                 }
@@ -559,10 +579,11 @@ impl App {
                 KeyCode::Enter => {
                     let block_text = blocks[*selected].clone();
                     self.overlay = Overlay::None;
-                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                        if clipboard.set_text(&block_text).is_ok() {
-                            self.state.error = Some("Copied code block to clipboard".to_string());
-                        }
+                    if let Ok(mut clipboard) = arboard::Clipboard::new()
+                        && clipboard.set_text(&block_text).is_ok()
+                    {
+                        self.state.status_message =
+                            Some("Copied code block to clipboard".to_string());
                     }
                 }
                 _ => {}
@@ -717,12 +738,17 @@ impl App {
                     let content = self.input.take_content();
                     if !content.trim().is_empty() {
                         self.state.error = None;
+                        self.state.status_message = None;
                         self.input_history.push(content.clone());
                         self.history_index = None;
-                        debug!("Sending Action::SendMessage, content length={}", content.len());
+                        debug!(
+                            "Sending Action::SendMessage, content length={}",
+                            content.len()
+                        );
                         if let Err(e) = self.action_tx.send(Action::SendMessage { content }) {
                             warn!("Failed to send action to coordinator: {e}");
-                            self.state.error = Some(format!("Internal error: coordinator disconnected ({e})"));
+                            self.state.error =
+                                Some(format!("Internal error: coordinator disconnected ({e})"));
                         }
                     }
                 }
@@ -732,11 +758,9 @@ impl App {
             }
             KeyCode::Up => {
                 self.history_prev();
-                return;
             }
             KeyCode::Down => {
                 self.history_next();
-                return;
             }
             KeyCode::Char(c) => {
                 self.input.insert_char(c);
@@ -850,11 +874,7 @@ impl App {
                 self.config_mouse = v == "on";
             }
             if let Some(v) = panel.get_value("defaults.system_prompt") {
-                self.config_system_prompt = if v == "(empty)" {
-                    String::new()
-                } else {
-                    v
-                };
+                self.config_system_prompt = if v == "(empty)" { String::new() } else { v };
             }
             // Write to config file
             self.write_config_file();
@@ -918,12 +938,10 @@ impl App {
             .find(|m| m.role == "assistant");
         if let Some(msg) = last_assistant {
             let text = msg.content.as_deref().unwrap_or("");
-            if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                if clipboard.set_text(text).is_ok() {
-                    self.state.error = None;
-                    // Brief feedback — reuse error field with a positive message
-                    self.state.error = Some("Copied response to clipboard".to_string());
-                }
+            if let Ok(mut clipboard) = arboard::Clipboard::new()
+                && clipboard.set_text(text).is_ok()
+            {
+                self.state.status_message = Some("Copied response to clipboard".to_string());
             }
         }
     }
@@ -973,10 +991,10 @@ impl App {
 
         if blocks.len() == 1 {
             // Single block — copy directly
-            if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                if clipboard.set_text(&blocks[0]).is_ok() {
-                    self.state.error = Some("Copied code block to clipboard".to_string());
-                }
+            if let Ok(mut clipboard) = arboard::Clipboard::new()
+                && clipboard.set_text(&blocks[0]).is_ok()
+            {
+                self.state.status_message = Some("Copied code block to clipboard".to_string());
             }
             return;
         }

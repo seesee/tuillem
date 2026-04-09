@@ -20,6 +20,8 @@ pub struct AppState {
     pub search_query: String,
     pub pending_tool_call: Option<PendingToolCall>,
     pub error: Option<String>,
+    /// Transient status message (e.g. "Copied to clipboard"). Cleared on next action.
+    pub status_message: Option<String>,
 }
 
 impl AppState {

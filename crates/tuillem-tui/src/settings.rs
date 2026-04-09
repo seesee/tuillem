@@ -62,6 +62,7 @@ pub struct SettingsPanel {
 }
 
 impl SettingsPanel {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         default_provider: &str,
         default_model: &str,
@@ -178,11 +179,11 @@ impl SettingsPanel {
     /// Accept the edit buffer into the value.
     pub fn confirm_edit(&mut self) {
         if self.editing {
-            if let Some(item) = self.items.get_mut(self.selected) {
-                if let SettingValue::Text(ref mut s) = item.value {
-                    *s = self.edit_buffer.clone();
-                    self.dirty = true;
-                }
+            if let Some(item) = self.items.get_mut(self.selected)
+                && let SettingValue::Text(ref mut s) = item.value
+            {
+                *s = self.edit_buffer.clone();
+                self.dirty = true;
             }
             self.editing = false;
             self.edit_buffer.clear();
@@ -204,7 +205,10 @@ impl SettingsPanel {
 
     /// Get the value for a given key.
     pub fn get_value(&self, key: &str) -> Option<String> {
-        self.items.iter().find(|i| i.key == key).map(|i| i.value.display())
+        self.items
+            .iter()
+            .find(|i| i.key == key)
+            .map(|i| i.value.display())
     }
 
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -265,7 +269,11 @@ impl SettingsPanel {
             lines.push(Line::from(vec![
                 Span::styled(label_part, label_style),
                 Span::styled(
-                    format!("{:>width$}", value_display, width = pad + value_display.len()),
+                    format!(
+                        "{:>width$}",
+                        value_display,
+                        width = pad + value_display.len()
+                    ),
                     value_style,
                 ),
             ]));
@@ -292,7 +300,9 @@ impl SettingsPanel {
             .title_bottom(Line::from(Span::styled(bottom_hint, dim)))
             .style(Style::default().bg(theme.bg));
 
-        let paragraph = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
+        let paragraph = Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false });
         frame.render_widget(paragraph, popup_area);
     }
 }

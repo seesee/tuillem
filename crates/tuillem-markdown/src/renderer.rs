@@ -41,11 +41,36 @@ impl MdRenderer {
             match element {
                 MdElement::Heading(level, inlines) => {
                     let (prefix, style) = match level {
-                        1 => ("═══ ", Style::default().fg(self.heading_color).add_modifier(Modifier::BOLD | Modifier::UNDERLINED)),
-                        2 => ("── ", Style::default().fg(self.heading_color).add_modifier(Modifier::BOLD)),
-                        3 => ("─ ", Style::default().fg(self.heading_color).add_modifier(Modifier::BOLD | Modifier::ITALIC)),
-                        4 => ("  ", Style::default().fg(self.heading_color).add_modifier(Modifier::BOLD)),
-                        _ => ("  ", Style::default().fg(self.heading_color).add_modifier(Modifier::ITALIC)),
+                        1 => (
+                            "═══ ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                        ),
+                        2 => (
+                            "── ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        3 => (
+                            "─ ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::BOLD | Modifier::ITALIC),
+                        ),
+                        4 => (
+                            "  ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        _ => (
+                            "  ",
+                            Style::default()
+                                .fg(self.heading_color)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
                     };
                     let text = inlines_to_plain_text(inlines);
                     lines.push(Line::from(vec![
@@ -59,18 +84,28 @@ impl MdRenderer {
                     lines.push(Line::from(""));
                 }
                 MdElement::CodeBlock { language, code } => {
-                    let lang_display = if language.is_empty() { "code" } else { language };
+                    let lang_display = if language.is_empty() {
+                        "code"
+                    } else {
+                        language
+                    };
                     lines.push(Line::from(Span::styled(
                         format!("┌─ {}", lang_display),
                         Style::default().fg(self.border_color),
                     )));
                     let highlighted = self.highlighter.highlight(code, language);
                     for hl_spans in highlighted {
-                        let mut line_spans = vec![Span::styled("│ ".to_string(), Style::default().fg(self.border_color))];
+                        let mut line_spans = vec![Span::styled(
+                            "│ ".to_string(),
+                            Style::default().fg(self.border_color),
+                        )];
                         line_spans.extend(hl_spans);
                         lines.push(Line::from(line_spans));
                     }
-                    lines.push(Line::from(Span::styled("└─".to_string(), Style::default().fg(self.border_color))));
+                    lines.push(Line::from(Span::styled(
+                        "└─".to_string(),
+                        Style::default().fg(self.border_color),
+                    )));
                     lines.push(Line::from(""));
                 }
                 MdElement::List(items) => {
@@ -92,7 +127,10 @@ impl MdRenderer {
                 MdElement::BlockQuote(inner) => {
                     let inner_text = self.render(inner);
                     for line in inner_text.lines {
-                        let mut spans = vec![Span::styled("▎ ".to_string(), Style::default().fg(self.blockquote_color))];
+                        let mut spans = vec![Span::styled(
+                            "▎ ".to_string(),
+                            Style::default().fg(self.blockquote_color),
+                        )];
                         spans.extend(line.spans);
                         lines.push(Line::from(spans));
                     }
@@ -103,7 +141,10 @@ impl MdRenderer {
                     lines.push(Line::from(""));
                 }
                 MdElement::ThematicBreak => {
-                    lines.push(Line::from(Span::styled("─".repeat(40), Style::default().fg(self.border_color))));
+                    lines.push(Line::from(Span::styled(
+                        "─".repeat(40),
+                        Style::default().fg(self.border_color),
+                    )));
                     lines.push(Line::from(""));
                 }
             }
@@ -125,9 +166,10 @@ impl MdRenderer {
 
         // Convert to plain text for width measurement and wrapping
         let header_texts: Vec<String> = headers.iter().map(|h| inlines_to_plain_text(h)).collect();
-        let row_texts: Vec<Vec<String>> = rows.iter().map(|row| {
-            row.iter().map(|cell| inlines_to_plain_text(cell)).collect()
-        }).collect();
+        let row_texts: Vec<Vec<String>> = rows
+            .iter()
+            .map(|row| row.iter().map(|cell| inlines_to_plain_text(cell)).collect())
+            .collect();
 
         let widths = compute_column_widths(&header_texts, &row_texts, num_cols, self.max_width);
 
@@ -136,22 +178,38 @@ impl MdRenderer {
         if self.max_width > 0 && total_rendered > self.max_width {
             tracing::warn!(
                 "Table width {} exceeds max {}! widths={:?} num_cols={} overhead={}",
-                total_rendered, self.max_width, widths, num_cols, 3 * num_cols + 1
+                total_rendered,
+                self.max_width,
+                widths,
+                num_cols,
+                3 * num_cols + 1
             );
         }
 
-        lines.push(Line::from(Span::styled(build_border("┌", "┬", "┐", &widths), border_style)));
+        lines.push(Line::from(Span::styled(
+            build_border("┌", "┬", "┐", &widths),
+            border_style,
+        )));
         render_wrapped_row(lines, &header_texts, &widths, border_style, true);
-        lines.push(Line::from(Span::styled(build_border("├", "┼", "┤", &widths), border_style)));
+        lines.push(Line::from(Span::styled(
+            build_border("├", "┼", "┤", &widths),
+            border_style,
+        )));
 
         for (i, row) in row_texts.iter().enumerate() {
             render_wrapped_row(lines, row, &widths, border_style, false);
             if i < row_texts.len() - 1 {
-                lines.push(Line::from(Span::styled(build_border("├", "┼", "┤", &widths), border_style)));
+                lines.push(Line::from(Span::styled(
+                    build_border("├", "┼", "┤", &widths),
+                    border_style,
+                )));
             }
         }
 
-        lines.push(Line::from(Span::styled(build_border("└", "┴", "┘", &widths), border_style)));
+        lines.push(Line::from(Span::styled(
+            build_border("└", "┴", "┘", &widths),
+            border_style,
+        )));
     }
 
     fn inline_to_spans(&self, inlines: &[InlineElement]) -> Vec<Span<'static>> {
@@ -160,17 +218,39 @@ impl MdRenderer {
         spans
     }
 
-    fn collect_spans(&self, inlines: &[InlineElement], base_style: Style, out: &mut Vec<Span<'static>>) {
+    fn collect_spans(
+        &self,
+        inlines: &[InlineElement],
+        base_style: Style,
+        out: &mut Vec<Span<'static>>,
+    ) {
         for inline in inlines {
             match inline {
                 InlineElement::Text(t) => out.push(Span::styled(t.clone(), base_style)),
-                InlineElement::Bold(inner) => self.collect_spans(inner, base_style.add_modifier(Modifier::BOLD), out),
-                InlineElement::Italic(inner) => self.collect_spans(inner, base_style.add_modifier(Modifier::ITALIC), out),
-                InlineElement::Strikethrough(inner) => self.collect_spans(inner, base_style.add_modifier(Modifier::CROSSED_OUT), out),
-                InlineElement::Code(t) => out.push(Span::styled(format!(" {} ", t), Style::default().bg(self.code_bg).fg(self.code_fg))),
+                InlineElement::Bold(inner) => {
+                    self.collect_spans(inner, base_style.add_modifier(Modifier::BOLD), out)
+                }
+                InlineElement::Italic(inner) => {
+                    self.collect_spans(inner, base_style.add_modifier(Modifier::ITALIC), out)
+                }
+                InlineElement::Strikethrough(inner) => {
+                    self.collect_spans(inner, base_style.add_modifier(Modifier::CROSSED_OUT), out)
+                }
+                InlineElement::Code(t) => out.push(Span::styled(
+                    format!(" {} ", t),
+                    Style::default().bg(self.code_bg).fg(self.code_fg),
+                )),
                 InlineElement::Link { text, url } => {
-                    out.push(Span::styled(text.clone(), Style::default().fg(self.link_color).add_modifier(Modifier::UNDERLINED)));
-                    out.push(Span::styled(format!(" ({})", url), Style::default().fg(self.link_color)));
+                    out.push(Span::styled(
+                        text.clone(),
+                        Style::default()
+                            .fg(self.link_color)
+                            .add_modifier(Modifier::UNDERLINED),
+                    ));
+                    out.push(Span::styled(
+                        format!(" ({})", url),
+                        Style::default().fg(self.link_color),
+                    ));
                 }
                 InlineElement::SoftBreak => out.push(Span::raw(" ")),
             }
@@ -191,7 +271,9 @@ fn inlines_to_plain_text(inlines: &[InlineElement]) -> String {
     for inline in inlines {
         match inline {
             InlineElement::Text(t) => s.push_str(t),
-            InlineElement::Bold(inner) | InlineElement::Italic(inner) | InlineElement::Strikethrough(inner) => {
+            InlineElement::Bold(inner)
+            | InlineElement::Italic(inner)
+            | InlineElement::Strikethrough(inner) => {
                 s.push_str(&inlines_to_plain_text(inner));
             }
             InlineElement::Code(t) => s.push_str(t),
@@ -235,7 +317,12 @@ fn compute_column_widths(
     let total_natural: usize = natural.iter().sum();
     tracing::debug!(
         "Table: {} cols, natural={:?} (sum={}), max_width={}, overhead={}, budget={}",
-        num_cols, natural, total_natural, max_width, overhead, budget
+        num_cols,
+        natural,
+        total_natural,
+        max_width,
+        overhead,
+        budget
     );
     if total_natural <= budget {
         tracing::debug!("Table fits naturally");
@@ -279,7 +366,12 @@ fn compute_column_widths(
 
     // Final safety clamp
     while widths.iter().sum::<usize>() > budget {
-        if let Some(max_idx) = widths.iter().enumerate().max_by_key(|(_, w)| *w).map(|(i, _)| i) {
+        if let Some(max_idx) = widths
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, w)| *w)
+            .map(|(i, _)| i)
+        {
             if widths[max_idx] > 4 {
                 widths[max_idx] -= 1;
             } else {
@@ -320,14 +412,16 @@ fn render_wrapped_row(
         Style::default()
     };
 
-    let wrapped: Vec<Vec<String>> = (0..num_cols).map(|i| {
-        let text = cells.get(i).map(|s| s.as_str()).unwrap_or("");
-        let w = widths[i];
-        if w == 0 {
-            return vec![String::new()];
-        }
-        width::wrap_to_width(text, w)
-    }).collect();
+    let wrapped: Vec<Vec<String>> = (0..num_cols)
+        .map(|i| {
+            let text = cells.get(i).map(|s| s.as_str()).unwrap_or("");
+            let w = widths[i];
+            if w == 0 {
+                return vec![String::new()];
+            }
+            width::wrap_to_width(text, w)
+        })
+        .collect();
 
     let max_lines = wrapped.iter().map(|w| w.len()).max().unwrap_or(1);
 
@@ -354,7 +448,11 @@ mod tests {
         let elements = parser::parse("# Hello");
         let renderer = MdRenderer::new();
         let text = renderer.render(&elements);
-        let content: String = text.lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        let content: String = text.lines[0]
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(content.contains("Hello"));
         assert!(content.contains("═══"));
     }
@@ -365,7 +463,12 @@ mod tests {
         let elements = parser::parse(md);
         let renderer = MdRenderer::new();
         let text = renderer.render(&elements);
-        let all: String = text.lines.iter().flat_map(|l| l.spans.iter()).map(|s| s.content.as_ref()).collect();
+        let all: String = text
+            .lines
+            .iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(all.contains("┌"));
         assert!(all.contains("┘"));
     }
@@ -387,7 +490,12 @@ mod tests {
         let elements = parser::parse("- one\n- two");
         let renderer = MdRenderer::new();
         let text = renderer.render(&elements);
-        let all: String = text.lines.iter().flat_map(|l| l.spans.iter()).map(|s| s.content.as_ref()).collect();
+        let all: String = text
+            .lines
+            .iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(all.contains("•"));
         assert!(all.contains("one"));
     }
