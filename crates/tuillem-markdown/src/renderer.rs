@@ -343,6 +343,14 @@ fn render_wrapped_row(
             let text_chars = text.chars().count();
             let pad = w.saturating_sub(text_chars);
             let padded = format!(" {}{} ", text, " ".repeat(pad));
+            let padded_chars = padded.chars().count();
+            let expected = w + 2; // content + 2 padding spaces
+            if padded_chars != expected {
+                tracing::warn!(
+                    "Cell padding mismatch! col={} w={} text_chars={} pad={} padded_chars={} expected={} text={:?} bytes={}",
+                    col, w, text_chars, pad, padded_chars, expected, text, text.len()
+                );
+            }
             spans.push(Span::styled(padded, cell_style));
             spans.push(Span::styled("│".to_string(), border_style));
         }
