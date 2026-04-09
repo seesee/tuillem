@@ -45,7 +45,7 @@ impl Conversation {
         focused: bool,
         theme: &Theme,
     ) {
-        let content_width = area.width.saturating_sub(2) as usize; // leave 1 char margin each side
+        let content_width = area.width.saturating_sub(4) as usize; // margin + buffer for table borders
         let mut lines: Vec<Line<'static>> = Vec::new();
 
         // Model indicator at top with focus hint
