@@ -36,6 +36,7 @@ pub enum Event {
     MessagesLoaded {
         messages: Vec<MessageView>,
     },
+    StreamStarted,
     StreamDelta {
         text: String,
     },

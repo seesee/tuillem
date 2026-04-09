@@ -219,6 +219,9 @@ impl Coordinator {
         // Show user message immediately in the UI
         self.send_messages_loaded(session_id, event_tx);
 
+        // Signal that we're about to stream
+        let _ = event_tx.send(Event::StreamStarted);
+
         // 2. Get message history from DB
         let db_messages = match self.db.get_session_messages(session_id) {
             Ok(msgs) => msgs,
@@ -368,14 +371,94 @@ impl Coordinator {
                 }
 
                 // 8. Send StreamDone and reload messages
-                let _ = event_tx.send(Event::StreamDone { message_id: msg.id });
+                let _ = event_tx.send(Event::StreamDone {
+                    message_id: msg.id,
+                });
                 self.send_messages_loaded(session_id, event_tx);
+
+                // 9. Auto-rename session if this is the first exchange
+                self.maybe_auto_rename_session(session_id, event_tx).await;
             }
             Err(e) => {
                 error!("Failed to store assistant message: {e}");
                 let _ = event_tx.send(Event::ResponseError {
                     error: format!("Failed to store response: {e}"),
                 });
+            }
+        }
+    }
+
+    async fn maybe_auto_rename_session(
+        &self,
+        session_id: &str,
+        event_tx: &mpsc::UnboundedSender<Event>,
+    ) {
+        // Only rename if there are exactly 2 messages (first user + first assistant)
+        let messages = match self.db.get_session_messages(session_id) {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+        if messages.len() != 2 {
+            return;
+        }
+
+        // Get the user's first message for context
+        let user_content = messages
+            .first()
+            .and_then(|m| m.content.as_deref())
+            .unwrap_or("");
+
+        let assistant_content = messages
+            .get(1)
+            .and_then(|m| m.content.as_deref())
+            .unwrap_or("");
+
+        // Ask the model to generate a title
+        let provider = match self.providers.get(&self.current_provider) {
+            Some(p) => p,
+            None => return,
+        };
+
+        let summary_request = ChatRequest {
+            model: self.current_model.clone(),
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: format!(
+                    "Summarize this conversation in 3-6 words for a sidebar title. Reply with ONLY the title, no quotes, no punctuation at the end.\n\nUser: {}\nAssistant: {}",
+                    &user_content[..user_content.len().min(200)],
+                    &assistant_content[..assistant_content.len().min(200)]
+                ),
+            }],
+            system: Some("You generate short conversation titles. Reply with only the title text, nothing else.".to_string()),
+            max_tokens: Some(20),
+            temperature: Some(0.3),
+        };
+
+        debug!("Auto-renaming session, requesting title from model");
+        match provider.send(summary_request).await {
+            Ok(mut stream) => {
+                let mut title = String::new();
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(StreamDelta::Text(t)) => title.push_str(&t),
+                        Ok(StreamDelta::Done) => break,
+                        Err(_) => return,
+                        _ => {}
+                    }
+                }
+                let title = title.trim().to_string();
+                if !title.is_empty() && title.len() < 80 {
+                    debug!("Auto-rename: '{}'", title);
+                    if self.db.update_session_title(session_id, &title).is_ok() {
+                        let _ = event_tx.send(Event::SessionRenamed {
+                            id: session_id.to_string(),
+                            title,
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                debug!("Auto-rename failed: {e}");
             }
         }
     }

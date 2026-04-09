@@ -175,7 +175,8 @@ impl App {
 
         // Auto-scroll on streaming and message events
         match event {
-            Event::StreamDelta { .. }
+            Event::StreamStarted
+            | Event::StreamDelta { .. }
             | Event::ThinkingDelta { .. }
             | Event::MessagesLoaded { .. }
             | Event::ResponseError { .. } => {
@@ -208,16 +209,21 @@ impl App {
                     self.update_focus_state();
                     return;
                 }
-                KeyCode::Char('m') => {
-                    self.open_model_popup();
-                    return;
-                }
-                KeyCode::Char('p') => {
-                    self.open_provider_popup();
-                    return;
-                }
                 _ => {}
             }
+        }
+
+        // F-key bindings (work regardless of modifiers)
+        match key.code {
+            KeyCode::F(2) => {
+                self.open_model_popup();
+                return;
+            }
+            KeyCode::F(3) => {
+                self.open_provider_popup();
+                return;
+            }
+            _ => {}
         }
 
         // Tab / Shift+Tab cycle focus

@@ -50,7 +50,7 @@ impl Input {
                 Style::default().fg(theme.thinking_fg),
             ),
             Span::styled(
-                " Enter:send  S-Enter:newline  C-e:editor  C-n:new  C-m:model  C-p:provider  C-c:quit ",
+                " Enter:send  S-Enter:newline  C-e:editor  C-n:new  F2:model  F3:provider  C-c:quit ",
                 Style::default().fg(theme.thinking_fg),
             ),
         ]);

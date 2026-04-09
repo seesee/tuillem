@@ -119,7 +119,8 @@ impl Conversation {
             // Message content
             if let Some(ref content) = msg.content {
                 if is_user {
-                    // User messages: right-aligned, wrapped manually
+                    // User messages: right-aligned with distinct background
+                    let user_style = Style::default().fg(theme.fg).bg(theme.user_msg_bg);
                     for text_line in content.lines() {
                         if text_line.is_empty() {
                             lines.push(Line::from(""));
@@ -127,8 +128,8 @@ impl Conversation {
                             for wrapped in wrap_text(text_line, content_width) {
                                 lines.push(
                                     Line::from(Span::styled(
-                                        wrapped,
-                                        Style::default().fg(theme.fg),
+                                        format!(" {} ", wrapped),
+                                        user_style,
                                     ))
                                     .alignment(Alignment::Right),
                                 );

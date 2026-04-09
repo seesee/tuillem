@@ -69,6 +69,12 @@ impl AppState {
                 self.streaming_thinking.clear();
                 self.is_streaming = false;
             }
+            Event::StreamStarted => {
+                self.streaming_text.clear();
+                self.streaming_thinking.clear();
+                self.is_streaming = true;
+                self.error = None;
+            }
             Event::StreamDelta { text } => {
                 self.streaming_text.push_str(text);
                 self.is_streaming = true;
