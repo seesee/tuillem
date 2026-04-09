@@ -77,6 +77,7 @@ impl App {
             &self.state.streaming_thinking,
             self.state.is_streaming,
             &self.state.current_model,
+            self.state.error.as_deref(),
             &self.theme,
         );
 
@@ -96,7 +97,8 @@ impl App {
         match event {
             Event::StreamDelta { .. }
             | Event::ThinkingDelta { .. }
-            | Event::MessagesLoaded { .. } => {
+            | Event::MessagesLoaded { .. }
+            | Event::ResponseError { .. } => {
                 self.conversation.scroll_to_bottom();
             }
             _ => {}
@@ -273,6 +275,7 @@ impl App {
                 } else {
                     let content = self.input.take_content();
                     if !content.trim().is_empty() {
+                        self.state.error = None;
                         let _ = self.action_tx.send(Action::SendMessage { content });
                     }
                 }

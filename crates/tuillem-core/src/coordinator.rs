@@ -204,8 +204,14 @@ impl Coordinator {
         }];
         if let Err(e) = self.db.create_message(&user_msg, &user_blocks) {
             error!("Failed to store user message: {e}");
+            let _ = event_tx.send(Event::ResponseError {
+                error: format!("Failed to store message: {e}"),
+            });
             return;
         }
+
+        // Show user message immediately in the UI
+        self.send_messages_loaded(session_id, event_tx);
 
         // 2. Get message history from DB
         let db_messages = match self.db.get_session_messages(session_id) {

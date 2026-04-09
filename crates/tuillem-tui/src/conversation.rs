@@ -35,6 +35,7 @@ impl Conversation {
         streaming_thinking: &str,
         is_streaming: bool,
         current_model: &str,
+        error: Option<&str>,
         theme: &Theme,
     ) {
         let mut lines: Vec<Line<'static>> = Vec::new();
@@ -149,6 +150,15 @@ impl Conversation {
                     theme.thinking_style().add_modifier(Modifier::SLOW_BLINK),
                 )));
             }
+        }
+
+        // Error display
+        if let Some(err) = error {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                format!(" Error: {}", err),
+                theme.error_style().add_modifier(Modifier::BOLD),
+            )));
         }
 
         let text = Text::from(lines);
