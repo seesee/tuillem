@@ -145,26 +145,11 @@ impl Conversation {
                         }
                     }
                 } else {
-                    // Assistant messages: left-aligned, rendered as markdown with wrapping
+                    // Assistant messages: left-aligned, rendered as markdown
+                    // The markdown renderer handles table widths and wrapping internally
                     let rendered = tuillem_markdown::render_markdown_width(content, content_width);
                     for line in rendered.lines {
-                        // Wrap long lines
-                        let line_len: usize = line.spans.iter().map(|s| s.content.len()).sum();
-                        if line_len > content_width && content_width > 0 {
-                            // Simple wrap: collect all text, re-wrap, apply first span's style
-                            let full_text: String =
-                                line.spans.iter().map(|s| s.content.to_string()).collect();
-                            let style = if line.spans.is_empty() {
-                                Style::default()
-                            } else {
-                                line.spans[0].style
-                            };
-                            for wrapped in wrap_text(&full_text, content_width) {
-                                lines.push(Line::from(Span::styled(wrapped, style)));
-                            }
-                        } else {
-                            lines.push(line);
-                        }
+                        lines.push(line);
                     }
                 }
             }
@@ -208,21 +193,7 @@ impl Conversation {
                 // Render and wrap streaming text (handles incomplete tables/code blocks)
                 let rendered = tuillem_markdown::render_markdown_streaming(streaming_text, content_width);
                 for line in rendered.lines {
-                    let line_len: usize = line.spans.iter().map(|s| s.content.len()).sum();
-                    if line_len > content_width && content_width > 0 {
-                        let full_text: String =
-                            line.spans.iter().map(|s| s.content.to_string()).collect();
-                        let style = if line.spans.is_empty() {
-                            Style::default()
-                        } else {
-                            line.spans[0].style
-                        };
-                        for wrapped in wrap_text(&full_text, content_width) {
-                            lines.push(Line::from(Span::styled(wrapped, style)));
-                        }
-                    } else {
-                        lines.push(line);
-                    }
+                    lines.push(line);
                 }
             }
 

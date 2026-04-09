@@ -339,18 +339,15 @@ fn render_wrapped_row(
         spans.push(Span::styled("│".to_string(), border_style));
         for (col, w) in widths.iter().enumerate() {
             let text = wrapped[col].get(line_idx).map(|s| s.as_str()).unwrap_or("");
-            // Pad to exact column width using char count
             let text_chars = text.chars().count();
             let pad = w.saturating_sub(text_chars);
-            let padded = format!(" {}{} ", text, " ".repeat(pad));
-            let padded_chars = padded.chars().count();
-            let expected = w + 2; // content + 2 padding spaces
-            if padded_chars != expected {
-                tracing::warn!(
-                    "Cell padding mismatch! col={} w={} text_chars={} pad={} padded_chars={} expected={} text={:?} bytes={}",
-                    col, w, text_chars, pad, padded_chars, expected, text, text.len()
-                );
+            let mut padded = String::with_capacity(text.len() + pad + 2);
+            padded.push(' ');
+            padded.push_str(text);
+            for _ in 0..pad {
+                padded.push(' ');
             }
+            padded.push(' ');
             spans.push(Span::styled(padded, cell_style));
             spans.push(Span::styled("│".to_string(), border_style));
         }
