@@ -66,6 +66,7 @@ impl Coordinator {
                     id: first.id.clone(),
                 });
                 self.send_messages_loaded(&first.id, &event_tx);
+                self.restore_session_model(&first.id, &event_tx);
             }
         }
 
@@ -92,27 +93,7 @@ impl Coordinator {
                     self.active_session_id = Some(id.clone());
                     let _ = event_tx.send(Event::SessionSelected { id: id.clone() });
                     self.send_messages_loaded(&id, &event_tx);
-
-                    // Restore the model/provider from session metadata
-                    if let Ok(session) = self.db.get_session(&id) {
-                        if let Some(meta) = &session.metadata {
-                            if let Ok(v) = serde_json::from_str::<serde_json::Value>(meta) {
-                                if let Some(p) = v["provider"].as_str() {
-                                    if self.providers.contains_key(p) {
-                                        self.current_provider = p.to_string();
-                                    }
-                                }
-                                if let Some(m) = v["model"].as_str() {
-                                    self.current_model = m.to_string();
-                                }
-                                debug!("Restored session model: {}:{}", self.current_provider, self.current_model);
-                                let _ = event_tx.send(Event::ModelSwitched {
-                                    provider: self.current_provider.clone(),
-                                    model: self.current_model.clone(),
-                                });
-                            }
-                        }
-                    }
+                    self.restore_session_model(&id, &event_tx);
                 }
 
                 Action::DeleteSession { id } => {
@@ -670,6 +651,28 @@ impl Coordinator {
             }
             Err(e) => {
                 debug!("Auto-rename failed: {e}");
+            }
+        }
+    }
+
+    fn restore_session_model(&mut self, session_id: &str, event_tx: &mpsc::UnboundedSender<Event>) {
+        if let Ok(session) = self.db.get_session(session_id) {
+            if let Some(meta) = &session.metadata {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(meta) {
+                    if let Some(p) = v["provider"].as_str() {
+                        if self.providers.contains_key(p) {
+                            self.current_provider = p.to_string();
+                        }
+                    }
+                    if let Some(m) = v["model"].as_str() {
+                        self.current_model = m.to_string();
+                    }
+                    debug!("Restored session model: {}:{}", self.current_provider, self.current_model);
+                    let _ = event_tx.send(Event::ModelSwitched {
+                        provider: self.current_provider.clone(),
+                        model: self.current_model.clone(),
+                    });
+                }
             }
         }
     }
