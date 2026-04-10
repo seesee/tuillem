@@ -1101,6 +1101,12 @@ impl App {
     fn save_settings(&mut self) {
         // Extract values from the settings panel before closing
         if let Overlay::Settings(ref panel) = self.overlay {
+            if let Some(v) = panel.get_value("defaults.provider") {
+                self.default_provider = v;
+            }
+            if let Some(v) = panel.get_value("defaults.model") {
+                self.default_model = v;
+            }
             if let Some(v) = panel.get_value("editor") {
                 self.editor_command = v;
             }
@@ -1177,6 +1183,12 @@ impl App {
         config.ui.reading_wpm = self.reading_wpm;
         config.ui.reading_nudge_lines = self.reading_nudge_lines;
         config.ui.reading_highlight = self.reading_highlight;
+        if !self.default_provider.is_empty() {
+            config.defaults.provider = Some(self.default_provider.clone());
+        }
+        if !self.default_model.is_empty() {
+            config.defaults.model = Some(self.default_model.clone());
+        }
         if self.config_system_prompt.is_empty() {
             config.defaults.system_prompt = None;
         } else {
