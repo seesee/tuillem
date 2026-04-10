@@ -75,8 +75,7 @@ impl Conversation {
         let is_loose = layout == "loose";
         let margin: usize = if is_loose { 2 } else { 0 };
         let margin_str: &str = if is_loose { "  " } else { "" };
-        // Reserve: 2 margin + 2 scrollbar padding + layout margin
-        let content_width = area.width.saturating_sub(4).saturating_sub(margin as u16) as usize;
+        let content_width = area.width.saturating_sub(2).saturating_sub(margin as u16) as usize;
         let mut lines: Vec<Line<'static>> = Vec::new();
 
         // Model indicator at top with focus hint
@@ -464,14 +463,24 @@ impl Conversation {
         }
 
         let text = Text::from(lines);
+
+        // Reserve 2 columns on the right for the scrollbar so right-aligned
+        // text doesn't render under it
+        let has_scrollbar = self.total_lines > self.visible_height;
+        let paragraph_area = if has_scrollbar {
+            Rect::new(area.x, area.y, area.width.saturating_sub(2), area.height)
+        } else {
+            area
+        };
+
         let paragraph = Paragraph::new(text)
             .style(Style::default().fg(theme.fg).bg(theme.bg))
             .scroll((self.scroll_offset, 0));
 
-        frame.render_widget(paragraph, area);
+        frame.render_widget(paragraph, paragraph_area);
 
         // Scrollbar on the right edge when content exceeds viewport
-        if self.total_lines > self.visible_height {
+        if has_scrollbar {
             let max_scroll = self.total_lines.saturating_sub(self.visible_height) as usize;
             let mut scrollbar_state = ScrollbarState::new(max_scroll)
                 .position(self.scroll_offset as usize);
