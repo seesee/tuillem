@@ -76,6 +76,8 @@ impl SettingsPanel {
         show_stats: bool,
         layout: &str,
         date_format: &str,
+        reading_wpm: u16,
+        reading_nudge_lines: u16,
     ) -> Self {
         let items = vec![
             SettingItem {
@@ -184,6 +186,16 @@ impl SettingsPanel {
                         _ => 0,
                     },
                 },
+            },
+            SettingItem {
+                label: "Reading Speed (WPM)".to_string(),
+                key: "ui.reading_wpm".to_string(),
+                value: SettingValue::Text(reading_wpm.to_string()),
+            },
+            SettingItem {
+                label: "Nudge Lines".to_string(),
+                key: "ui.reading_nudge_lines".to_string(),
+                value: SettingValue::Text(reading_nudge_lines.to_string()),
             },
             SettingItem {
                 label: "System Prompt".to_string(),

@@ -12,12 +12,34 @@ use tuillem_core::actions::MessageView;
 use crate::theme::Theme;
 
 #[derive(Debug, Clone)]
+pub struct ReadingMode {
+    pub active: bool,
+    pub paused: bool,
+    pub last_scroll: std::time::Instant,
+    pub lines_per_second: f64,
+    pub target_offset: u16,
+}
+
+impl Default for ReadingMode {
+    fn default() -> Self {
+        Self {
+            active: false,
+            paused: false,
+            last_scroll: std::time::Instant::now(),
+            lines_per_second: 0.0,
+            target_offset: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Conversation {
     pub scroll_offset: u16,
     pub expanded_thinking: HashSet<usize>,
     pub total_lines: u16,
     pub visible_height: u16,
     pub auto_scroll: bool,
+    pub reading_mode: ReadingMode,
 }
 
 impl Conversation {
@@ -28,6 +50,61 @@ impl Conversation {
             total_lines: 0,
             visible_height: 0,
             auto_scroll: true,
+            reading_mode: ReadingMode::default(),
+        }
+    }
+
+    pub fn start_reading(&mut self, wpm: u16, content_width: u16) {
+        let words_per_line = (content_width as f64) / 5.0;
+        let lines_per_second = if words_per_line > 0.0 {
+            (wpm as f64) / 60.0 / words_per_line
+        } else {
+            0.5
+        };
+        let target = self.total_lines.saturating_sub(self.visible_height);
+        if self.scroll_offset < target {
+            self.reading_mode = ReadingMode {
+                active: true,
+                paused: false,
+                last_scroll: std::time::Instant::now(),
+                lines_per_second,
+                target_offset: target,
+            };
+        }
+    }
+
+    pub fn stop_reading(&mut self) {
+        self.reading_mode.active = false;
+        self.reading_mode.paused = false;
+    }
+
+    pub fn toggle_pause(&mut self) {
+        if self.reading_mode.active {
+            self.reading_mode.paused = !self.reading_mode.paused;
+            if !self.reading_mode.paused {
+                // Reset the clock so we don't jump ahead
+                self.reading_mode.last_scroll = std::time::Instant::now();
+            }
+        }
+    }
+
+    pub fn nudge_forward(&mut self, lines: u16) {
+        if self.reading_mode.active {
+            self.scroll_offset = self
+                .scroll_offset
+                .saturating_add(lines)
+                .min(self.reading_mode.target_offset);
+            self.reading_mode.last_scroll = std::time::Instant::now();
+            if self.scroll_offset >= self.reading_mode.target_offset {
+                self.reading_mode.active = false;
+            }
+        }
+    }
+
+    pub fn nudge_backward(&mut self, lines: u16) {
+        if self.reading_mode.active {
+            self.scroll_offset = self.scroll_offset.saturating_sub(lines);
+            self.reading_mode.last_scroll = std::time::Instant::now();
         }
     }
 
@@ -327,6 +404,17 @@ impl Conversation {
                         .add_modifier(Modifier::ITALIC),
                 )]));
             }
+
+            // Streaming indicator when content is below viewport
+            let total_so_far = lines.len() as u16;
+            if total_so_far > area.height.saturating_add(self.scroll_offset) {
+                lines.push(Line::from(Span::styled(
+                    format!("{}streaming...", margin_str),
+                    Style::default()
+                        .fg(theme.warning)
+                        .add_modifier(Modifier::ITALIC),
+                )));
+            }
         }
 
         // Error display
@@ -352,9 +440,52 @@ impl Conversation {
         self.total_lines = lines.len() as u16;
         self.visible_height = area.height;
 
-        // Auto-scroll to bottom when new content arrives
-        if self.auto_scroll {
+        // Reading mode auto-scroll advancement
+        if self.reading_mode.active && !self.reading_mode.paused {
+            let elapsed = self.reading_mode.last_scroll.elapsed().as_secs_f64();
+            let lines_to_advance = elapsed * self.reading_mode.lines_per_second;
+            if lines_to_advance >= 1.0 {
+                self.scroll_offset = self
+                    .scroll_offset
+                    .saturating_add(lines_to_advance as u16)
+                    .min(self.reading_mode.target_offset);
+                self.reading_mode.last_scroll = std::time::Instant::now();
+                if self.scroll_offset >= self.reading_mode.target_offset {
+                    self.reading_mode.active = false;
+                }
+            }
+        } else if self.auto_scroll {
+            // Auto-scroll to bottom when new content arrives (non-reading mode)
             self.scroll_offset = self.total_lines.saturating_sub(self.visible_height);
+        }
+
+        // Reading mode indicator bar (replaces last visible line)
+        if self.reading_mode.active {
+            let indicator = if self.reading_mode.paused {
+                format!(
+                    "{}\u{23f8} Paused [Enter:resume G:end]",
+                    margin_str
+                )
+            } else {
+                format!(
+                    "{}\u{25b6} Reading {}wpm [Space:nudge Enter:pause G:end]",
+                    margin_str,
+                    // Reverse-calculate WPM from lines_per_second for display
+                    (self.reading_mode.lines_per_second * 60.0 * (area.width as f64 / 5.0)) as u16
+                )
+            };
+            let indicator_style = if self.reading_mode.paused {
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD)
+            };
+            lines.push(Line::from(Span::styled(indicator, indicator_style)));
+            // Update total_lines to include the indicator
+            self.total_lines = lines.len() as u16;
         }
 
         let text = Text::from(lines);

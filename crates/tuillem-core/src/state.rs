@@ -225,6 +225,7 @@ mod tests {
             tokens_in: 100,
             tokens_out: 50,
             latency_ms: 2000,
+            estimated: false,
         });
         assert!(state.streaming_text.is_empty());
         assert!(state.streaming_thinking.is_empty());

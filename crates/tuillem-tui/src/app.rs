@@ -89,6 +89,8 @@ pub struct App {
     pub show_stats: bool,
     pub layout: String,
     pub date_format: String,
+    pub reading_wpm: u16,
+    pub reading_nudge_lines: u16,
 }
 
 impl App {
@@ -125,6 +127,8 @@ impl App {
             show_stats: false,
             layout: "loose".to_string(),
             date_format: "dd/mm/yyyy".to_string(),
+            reading_wpm: 250,
+            reading_nudge_lines: 3,
         }
     }
 
@@ -398,13 +402,28 @@ impl App {
             self.history_index = None;
         }
 
-        // Auto-scroll on streaming and message events
+        // Scroll behavior for streaming and message events
         match event {
-            Event::StreamStarted
-            | Event::StreamDelta { .. }
-            | Event::ThinkingDelta { .. }
-            | Event::MessagesLoaded { .. }
-            | Event::ResponseError { .. } => {
+            Event::StreamStarted => {
+                // Don't auto-scroll during streaming — let user stay where they are
+                self.conversation.auto_scroll = false;
+                self.conversation.stop_reading();
+            }
+            Event::StreamDone { .. } => {
+                // After streaming completes, start reading mode if there's content below viewport
+                let max_offset = self
+                    .conversation
+                    .total_lines
+                    .saturating_sub(self.conversation.visible_height);
+                if self.conversation.scroll_offset < max_offset {
+                    // Content width approximation for WPM calculation
+                    let content_width = self.conversation.visible_height; // will be corrected by area.width in render
+                    self.conversation.start_reading(self.reading_wpm, content_width);
+                } else {
+                    self.conversation.scroll_to_bottom();
+                }
+            }
+            Event::MessagesLoaded { .. } | Event::ResponseError { .. } => {
                 self.conversation.scroll_to_bottom();
             }
             _ => {}
@@ -486,6 +505,34 @@ impl App {
                 return;
             }
             _ => {}
+        }
+
+        // Reading mode global keys (work regardless of focus, checked before Esc handler)
+        if self.conversation.reading_mode.active {
+            match key.code {
+                KeyCode::Char(' ') => {
+                    self.conversation.nudge_forward(self.reading_nudge_lines);
+                    return;
+                }
+                KeyCode::Backspace => {
+                    self.conversation.nudge_backward(self.reading_nudge_lines);
+                    return;
+                }
+                KeyCode::Enter => {
+                    self.conversation.toggle_pause();
+                    return;
+                }
+                KeyCode::Char('G') => {
+                    self.conversation.stop_reading();
+                    self.conversation.scroll_to_bottom();
+                    return;
+                }
+                KeyCode::Esc => {
+                    self.conversation.stop_reading();
+                    return;
+                }
+                _ => {}
+            }
         }
 
         // Escape: cancel streaming if active, otherwise return to input
@@ -926,6 +973,8 @@ impl App {
             self.show_stats,
             &self.layout,
             &self.date_format,
+            self.reading_wpm,
+            self.reading_nudge_lines,
         );
         self.overlay = Overlay::Settings(panel);
     }
@@ -963,6 +1012,16 @@ impl App {
             if let Some(v) = panel.get_value("ui.date_format") {
                 self.date_format = v;
             }
+            if let Some(v) = panel.get_value("ui.reading_wpm") {
+                if let Ok(wpm) = v.parse::<u16>() {
+                    self.reading_wpm = wpm;
+                }
+            }
+            if let Some(v) = panel.get_value("ui.reading_nudge_lines") {
+                if let Ok(lines) = v.parse::<u16>() {
+                    self.reading_nudge_lines = lines;
+                }
+            }
             // Apply theme instantly
             self.theme = Theme::from_config(&self.config_theme, &std::collections::HashMap::new());
 
@@ -993,6 +1052,8 @@ impl App {
         config.ui.show_stats = self.show_stats;
         config.ui.layout = self.layout.clone();
         config.ui.date_format = self.date_format.clone();
+        config.ui.reading_wpm = self.reading_wpm;
+        config.ui.reading_nudge_lines = self.reading_nudge_lines;
         if self.config_system_prompt.is_empty() {
             config.defaults.system_prompt = None;
         } else {
