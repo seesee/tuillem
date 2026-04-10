@@ -74,10 +74,140 @@ impl Theme {
         }
     }
 
+    /// Dracula palette.
+    pub fn dracula() -> Self {
+        Self {
+            bg: Color::Rgb(40, 42, 54),                  // #282a36
+            fg: Color::Rgb(248, 248, 242),               // #f8f8f2
+            sidebar_bg: Color::Rgb(33, 34, 44),          // #21222c
+            sidebar_fg: Color::Rgb(248, 248, 242),       // #f8f8f2
+            sidebar_selected: Color::Rgb(189, 147, 249), // #bd93f9
+            user_msg_bg: Color::Rgb(68, 71, 90),         // #44475a
+            assistant_msg_bg: Color::Rgb(40, 42, 54),    // #282a36
+            thinking_fg: Color::Rgb(98, 114, 164),       // #6272a4
+            accent: Color::Rgb(189, 147, 249),           // #bd93f9
+            error: Color::Rgb(255, 85, 85),              // #ff5555
+            success: Color::Rgb(80, 250, 123),           // #50fa7b
+            warning: Color::Rgb(241, 250, 140),          // #f1fa8c
+            border: Color::Rgb(68, 71, 90),              // #44475a
+            code_bg: Color::Rgb(33, 34, 44),             // #21222c
+            code_fg: Color::Rgb(80, 250, 123),           // #50fa7b
+            heading: Color::Rgb(255, 121, 198),          // #ff79c6
+            link: Color::Rgb(139, 233, 253),             // #8be9fd
+            tag: Color::Rgb(189, 147, 249),              // #bd93f9
+        }
+    }
+
+    /// Nord palette.
+    pub fn nord() -> Self {
+        Self {
+            bg: Color::Rgb(46, 52, 64),                  // #2e3440
+            fg: Color::Rgb(216, 222, 233),               // #d8dee9
+            sidebar_bg: Color::Rgb(59, 66, 82),          // #3b4252
+            sidebar_fg: Color::Rgb(216, 222, 233),       // #d8dee9
+            sidebar_selected: Color::Rgb(136, 192, 208), // #88c0d0
+            user_msg_bg: Color::Rgb(67, 76, 94),         // #434c5e
+            assistant_msg_bg: Color::Rgb(46, 52, 64),    // #2e3440
+            thinking_fg: Color::Rgb(76, 86, 106),        // #4c566a
+            accent: Color::Rgb(136, 192, 208),           // #88c0d0
+            error: Color::Rgb(191, 97, 106),             // #bf616a
+            success: Color::Rgb(163, 190, 140),          // #a3be8c
+            warning: Color::Rgb(235, 203, 139),          // #ebcb8b
+            border: Color::Rgb(76, 86, 106),             // #4c566a
+            code_bg: Color::Rgb(59, 66, 82),             // #3b4252
+            code_fg: Color::Rgb(163, 190, 140),          // #a3be8c
+            heading: Color::Rgb(129, 161, 193),          // #81a1c1
+            link: Color::Rgb(136, 192, 208),             // #88c0d0
+            tag: Color::Rgb(180, 142, 173),              // #b48ead
+        }
+    }
+
+    /// Gruvbox Dark palette.
+    pub fn gruvbox() -> Self {
+        Self {
+            bg: Color::Rgb(40, 40, 40),                  // #282828
+            fg: Color::Rgb(235, 219, 178),               // #ebdbb2
+            sidebar_bg: Color::Rgb(29, 32, 33),          // #1d2021
+            sidebar_fg: Color::Rgb(235, 219, 178),       // #ebdbb2
+            sidebar_selected: Color::Rgb(250, 189, 47),  // #fabd2f
+            user_msg_bg: Color::Rgb(60, 56, 54),         // #3c3836
+            assistant_msg_bg: Color::Rgb(40, 40, 40),    // #282828
+            thinking_fg: Color::Rgb(146, 131, 116),      // #928374
+            accent: Color::Rgb(250, 189, 47),            // #fabd2f
+            error: Color::Rgb(251, 73, 52),              // #fb4934
+            success: Color::Rgb(184, 187, 38),           // #b8bb26
+            warning: Color::Rgb(254, 128, 25),           // #fe8019
+            border: Color::Rgb(80, 73, 69),              // #504945
+            code_bg: Color::Rgb(29, 32, 33),             // #1d2021
+            code_fg: Color::Rgb(184, 187, 38),           // #b8bb26
+            heading: Color::Rgb(131, 165, 152),          // #83a598
+            link: Color::Rgb(131, 165, 152),             // #83a598
+            tag: Color::Rgb(211, 134, 155),              // #d3869b
+        }
+    }
+
+    /// Tokyo Night palette.
+    pub fn tokyo_night() -> Self {
+        Self {
+            bg: Color::Rgb(26, 27, 38),                  // #1a1b26
+            fg: Color::Rgb(169, 177, 214),               // #a9b1d6
+            sidebar_bg: Color::Rgb(22, 22, 30),          // #16161e
+            sidebar_fg: Color::Rgb(169, 177, 214),       // #a9b1d6
+            sidebar_selected: Color::Rgb(122, 162, 247), // #7aa2f7
+            user_msg_bg: Color::Rgb(41, 46, 66),         // #292e42
+            assistant_msg_bg: Color::Rgb(26, 27, 38),    // #1a1b26
+            thinking_fg: Color::Rgb(86, 95, 137),        // #565f89
+            accent: Color::Rgb(122, 162, 247),           // #7aa2f7
+            error: Color::Rgb(247, 118, 142),            // #f7768e
+            success: Color::Rgb(158, 206, 106),          // #9ece6a
+            warning: Color::Rgb(224, 175, 104),          // #e0af68
+            border: Color::Rgb(41, 46, 66),              // #292e42
+            code_bg: Color::Rgb(22, 22, 30),             // #16161e
+            code_fg: Color::Rgb(158, 206, 106),          // #9ece6a
+            heading: Color::Rgb(187, 154, 247),          // #bb9af7
+            link: Color::Rgb(125, 207, 255),             // #7dcfff
+            tag: Color::Rgb(187, 154, 247),              // #bb9af7
+        }
+    }
+
+    /// Solarized Dark palette.
+    pub fn solarized() -> Self {
+        Self {
+            bg: Color::Rgb(0, 43, 54),                   // #002b36
+            fg: Color::Rgb(131, 148, 150),               // #839496
+            sidebar_bg: Color::Rgb(7, 54, 66),           // #073642
+            sidebar_fg: Color::Rgb(131, 148, 150),       // #839496
+            sidebar_selected: Color::Rgb(38, 139, 210),  // #268bd2
+            user_msg_bg: Color::Rgb(7, 54, 66),          // #073642
+            assistant_msg_bg: Color::Rgb(0, 43, 54),     // #002b36
+            thinking_fg: Color::Rgb(88, 110, 117),       // #586e75
+            accent: Color::Rgb(38, 139, 210),            // #268bd2
+            error: Color::Rgb(220, 50, 47),              // #dc322f
+            success: Color::Rgb(133, 153, 0),            // #859900
+            warning: Color::Rgb(181, 137, 0),            // #b58900
+            border: Color::Rgb(88, 110, 117),            // #586e75
+            code_bg: Color::Rgb(7, 54, 66),              // #073642
+            code_fg: Color::Rgb(133, 153, 0),            // #859900
+            heading: Color::Rgb(108, 113, 196),          // #6c71c4
+            link: Color::Rgb(42, 161, 152),              // #2aa198
+            tag: Color::Rgb(108, 113, 196),              // #6c71c4
+        }
+    }
+
+    /// All built-in theme names.
+    pub fn builtin_names() -> &'static [&'static str] {
+        &["dark", "light", "dracula", "nord", "gruvbox", "tokyo_night", "solarized"]
+    }
+
     /// Get a theme by name, applying custom overrides if available.
     pub fn from_config(name: &str, custom_themes: &HashMap<String, ThemeColors>) -> Self {
         let base = match name {
             "light" => Self::light(),
+            "dracula" => Self::dracula(),
+            "nord" => Self::nord(),
+            "gruvbox" => Self::gruvbox(),
+            "tokyo_night" => Self::tokyo_night(),
+            "solarized" => Self::solarized(),
             _ => Self::dark(),
         };
         match custom_themes.get(name) {

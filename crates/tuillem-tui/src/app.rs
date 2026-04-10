@@ -963,6 +963,9 @@ impl App {
             if let Some(v) = panel.get_value("ui.date_format") {
                 self.date_format = v;
             }
+            // Apply theme instantly
+            self.theme = Theme::from_config(&self.config_theme, &std::collections::HashMap::new());
+
             // Write to config file
             self.write_config_file();
         }
