@@ -474,19 +474,15 @@ impl Conversation {
 
     pub fn scroll_up(&mut self, amount: u16) {
         self.scroll_offset = self.scroll_offset.saturating_sub(amount);
-        // Manual scroll freezes
-        if !matches!(self.scroll_state, ScrollState::FollowBottom) {
-            self.scroll_state = ScrollState::Frozen;
-        }
+        // Any manual scroll freezes — break out of FollowBottom/Streaming
+        self.scroll_state = ScrollState::Frozen;
     }
 
     pub fn scroll_down(&mut self, amount: u16) {
         let max_offset = self.total_lines.saturating_sub(self.visible_height);
         self.scroll_offset = self.scroll_offset.saturating_add(amount).min(max_offset);
-        // Manual scroll freezes (don't jump back)
-        if !matches!(self.scroll_state, ScrollState::FollowBottom) {
-            self.scroll_state = ScrollState::Frozen;
-        }
+        // Any manual scroll freezes
+        self.scroll_state = ScrollState::Frozen;
     }
 
     pub fn scroll_to_bottom(&mut self) {
