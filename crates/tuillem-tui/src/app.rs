@@ -236,9 +236,11 @@ impl App {
             let total_tokens = stats.tokens_in + stats.tokens_out;
             let ctx_pct = (total_tokens as f64 / context_window as f64) * 100.0;
 
+            let approx = if stats.estimated { "~" } else { "" };
             let stats_text = format!(
-                "Tokens: {}>{} | {:.1} tok/s | ~{:.0}% ctx",
-                stats.tokens_in, stats.tokens_out, toks_per_sec, ctx_pct
+                "Tokens: {}{}>{}  {}{:.1} tok/s  ~{:.0}% ctx",
+                approx, stats.tokens_in, stats.tokens_out,
+                approx, toks_per_sec, ctx_pct
             );
 
             let style = Style::default().fg(self.theme.thinking_fg);
@@ -454,11 +456,6 @@ impl App {
             }
         }
 
-        // ? opens help when not in input focus
-        if key.code == KeyCode::Char('?') && self.focus != Focus::Input {
-            self.overlay = Overlay::Help;
-            return;
-        }
 
         // Tab / Shift+Tab / BackTab cycle focus
         match key.code {
@@ -518,7 +515,6 @@ impl App {
             Overlay::Help => {
                 if key.code == KeyCode::Esc
                     || key.code == KeyCode::Char('q')
-                    || key.code == KeyCode::Char('?')
                     || (key.modifiers.contains(KeyModifiers::CONTROL)
                         && key.code == KeyCode::Char('h'))
                 {

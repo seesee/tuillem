@@ -12,6 +12,8 @@ pub struct ResponseStats {
     pub tokens_out: u64,
     pub latency_ms: u64,
     pub model: String,
+    /// True if token counts are estimated from text length, not provider-reported.
+    pub estimated: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -101,6 +103,7 @@ impl AppState {
                 tokens_in,
                 tokens_out,
                 latency_ms,
+                estimated,
                 ..
             } => {
                 self.streaming_text.clear();
@@ -112,6 +115,7 @@ impl AppState {
                         tokens_out: *tokens_out,
                         latency_ms: *latency_ms,
                         model: self.current_model.clone(),
+                        estimated: *estimated,
                     });
                 }
             }

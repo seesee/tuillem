@@ -66,7 +66,7 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
             Span::styled("Copy code blocks from last response", dim),
         ]),
         Line::from(vec![
-            Span::styled("  Ctrl+H/?  ", normal),
+            Span::styled("  Ctrl+H    ", normal),
             Span::styled("This help screen", dim),
         ]),
         Line::from(""),

@@ -396,6 +396,10 @@ impl Coordinator {
             }
         };
 
+        // Capture input size before request is moved, for fallback token estimation
+        let request_input_chars: usize = request.messages.iter().map(|m| m.content.len()).sum::<usize>()
+            + request.system.as_ref().map_or(0, |s| s.len());
+
         let mut stream = match provider.send(request).await {
             Ok(s) => {
                 debug!("Provider returned stream successfully");
@@ -466,8 +470,14 @@ impl Coordinator {
 
         // Fallback: estimate tokens from text length if provider didn't report usage
         // Rough heuristic: ~4 chars per token for English text
+        let mut estimated = false;
         if output_tokens == 0 && !full_text.is_empty() {
             output_tokens = (full_text.len() as u64) / 4;
+            estimated = true;
+        }
+        if input_tokens == 0 && request_input_chars > 0 {
+            input_tokens = (request_input_chars as u64) / 4;
+            estimated = true;
         }
 
         if cancelled {
@@ -480,6 +490,7 @@ impl Coordinator {
                 tokens_in: input_tokens,
                 tokens_out: output_tokens,
                 latency_ms: start.elapsed().as_millis() as u64,
+                estimated,
             });
             if full_text.is_empty() {
                 self.send_messages_loaded(session_id, event_tx);
@@ -535,6 +546,7 @@ impl Coordinator {
                     tokens_in: input_tokens,
                     tokens_out: output_tokens,
                     latency_ms: start.elapsed().as_millis() as u64,
+                    estimated,
                 });
                 self.send_messages_loaded(session_id, event_tx);
                 Some(msg.id)

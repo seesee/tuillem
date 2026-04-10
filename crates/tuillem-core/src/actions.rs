@@ -50,6 +50,8 @@ pub enum Event {
         tokens_in: u64,
         tokens_out: u64,
         latency_ms: u64,
+        /// True if token counts are estimated, not provider-reported.
+        estimated: bool,
     },
     ResponseError {
         error: String,
