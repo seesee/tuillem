@@ -425,23 +425,7 @@ impl App {
                 self.conversation.stream_start_offset = bottom;
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
-                if self.conversation.auto_scroll {
-                    let max_offset = self
-                        .conversation
-                        .total_lines
-                        .saturating_sub(self.conversation.visible_height);
-                    // Has the response grown past one full viewport from where it started?
-                    let one_viewport_past = self.conversation.stream_start_offset
-                        .saturating_add(self.conversation.visible_height);
-                    if max_offset > one_viewport_past {
-                        // Freeze viewport so user sees top of response
-                        self.conversation.scroll_offset = self.conversation.stream_start_offset;
-                        self.conversation.auto_scroll = false;
-                    } else {
-                        // Still filling first viewport — follow the bottom
-                        self.conversation.scroll_offset = max_offset;
-                    }
-                }
+                // Scroll logic handled in render() where total_lines is fresh
             }
             Event::StreamDone { .. } => {
                 // Stop auto-scrolling if still active (short response)

@@ -380,8 +380,17 @@ impl Conversation {
         }
 
         if self.auto_scroll {
-            // Auto-scroll to bottom when new content arrives
-            self.scroll_offset = self.total_lines.saturating_sub(self.visible_height);
+            let max_offset = self.total_lines.saturating_sub(self.visible_height);
+            // Check if response has grown past one full viewport from start
+            let one_viewport_past = self.stream_start_offset.saturating_add(self.visible_height);
+            if max_offset > one_viewport_past {
+                // Freeze: park at start so user sees top of response
+                self.scroll_offset = self.stream_start_offset;
+                self.auto_scroll = false;
+            } else {
+                // Still filling first viewport — follow bottom
+                self.scroll_offset = max_offset;
+            }
         }
 
         // Apply highlight to the target line (full width)
