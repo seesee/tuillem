@@ -433,7 +433,10 @@ impl App {
                 }
             }
             Event::MessagesLoaded { .. } | Event::ResponseError { .. } => {
-                self.conversation.scroll_to_bottom();
+                // Only scroll to bottom if not frozen (user is reading)
+                if !matches!(self.conversation.scroll_state, crate::conversation::ScrollState::Frozen) {
+                    self.conversation.scroll_to_bottom();
+                }
             }
             _ => {}
         }
