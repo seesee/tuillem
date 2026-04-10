@@ -112,15 +112,19 @@ impl MdRenderer {
                 }
                 MdElement::List(items) => {
                     for item in items {
-                        let mut spans = vec![Span::raw("  • ")];
+                        let mut spans = vec![Span::raw("   • ")];
                         spans.extend(self.inline_to_spans(&item.content));
                         lines.push(Line::from(spans));
                     }
                     lines.push(Line::from(""));
                 }
                 MdElement::OrderedList(items) => {
+                    // Right-align numbers so 1-9 line up with 10+
+                    let max_digits = format!("{}", items.len()).len();
                     for (idx, item) in items.iter().enumerate() {
-                        let mut spans = vec![Span::raw(format!("  {}. ", idx + 1))];
+                        let num = idx + 1;
+                        let prefix = format!("  {:>width$}. ", num, width = max_digits);
+                        let mut spans = vec![Span::raw(prefix)];
                         spans.extend(self.inline_to_spans(&item.content));
                         lines.push(Line::from(spans));
                     }
