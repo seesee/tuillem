@@ -80,31 +80,14 @@ impl Input {
         };
         frame.render_widget(display, inner);
 
-        // Show cursor — compute position accounting for wrapping
+        // Show cursor — simulate ratatui's word wrapping to find cursor position
         if self.focused && inner.width > 0 && inner.height > 0 {
-            let text_before_cursor = &self.content[..self.cursor_pos];
             let wrap_width = inner.width as usize;
-            if wrap_width > 0 {
-                // Count how many visual lines the text before cursor spans
-                let mut x = 0usize;
-                let mut y = 0u16;
-                for ch in text_before_cursor.chars() {
-                    if ch == '\n' {
-                        x = 0;
-                        y += 1;
-                    } else {
-                        x += 1;
-                        if x > wrap_width {
-                            x = 1;
-                            y += 1;
-                        }
-                    }
-                }
-                let cursor_x = inner.x + x as u16;
-                let cursor_y = inner.y + y;
-                if cursor_x < inner.x + inner.width && cursor_y < inner.y + inner.height {
-                    frame.set_cursor_position((cursor_x, cursor_y));
-                }
+            let (cx, cy) = compute_cursor_pos(&self.content, self.cursor_pos, wrap_width);
+            let cursor_x = inner.x + cx as u16;
+            let cursor_y = inner.y + cy as u16;
+            if cursor_x < inner.x + inner.width && cursor_y < inner.y + inner.height {
+                frame.set_cursor_position((cursor_x, cursor_y));
             }
         }
     }
@@ -185,6 +168,76 @@ impl Default for Input {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Compute visual (x, y) cursor position by simulating word wrapping.
+/// Matches ratatui's `Wrap { trim: false }` behavior.
+fn compute_cursor_pos(text: &str, byte_pos: usize, wrap_width: usize) -> (usize, usize) {
+    if wrap_width == 0 {
+        return (0, 0);
+    }
+
+    let text_before = &text[..byte_pos];
+    let mut x = 0usize;
+    let mut y = 0usize;
+
+    // Process line by line (hard breaks from \n)
+    for (line_idx, line) in text_before.split('\n').enumerate() {
+        if line_idx > 0 {
+            // Each \n moves to next line
+            x = 0;
+            y += 1;
+        }
+
+        // Simulate word wrapping within this line
+        let mut col = 0usize;
+        let mut chars = line.chars().peekable();
+
+        while chars.peek().is_some() {
+            // Find next word and trailing spaces
+            let mut word = String::new();
+            // Consume spaces first
+            while let Some(&c) = chars.peek() {
+                if c == ' ' {
+                    word.push(c);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            // Consume non-space chars
+            let space_len = word.len();
+            while let Some(&c) = chars.peek() {
+                if c == ' ' {
+                    break;
+                }
+                word.push(c);
+                chars.next();
+            }
+
+            let word_len = word.len();
+
+            if col == 0 {
+                // Start of line — always place the word
+                col = word_len;
+            } else if col + word_len <= wrap_width {
+                // Fits on current line
+                col += word_len;
+            } else {
+                // Doesn't fit — wrap to next line
+                y += 1;
+                // In wrap mode, leading spaces on wrapped line are kept (trim: false)
+                col = word_len - space_len; // just the non-space part on new line
+                if col == 0 && space_len > 0 {
+                    col = word_len; // all spaces — keep them
+                }
+            }
+        }
+
+        x = col;
+    }
+
+    (x, y)
 }
 
 #[cfg(test)]
