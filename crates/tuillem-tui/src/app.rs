@@ -635,14 +635,10 @@ impl App {
                             panel.move_up();
                         }
                         KeyCode::Left | KeyCode::Char('h') => {
-                            if panel.is_model_select() {
-                                panel.model_nav_up();
-                            }
+                            panel.nav_left();
                         }
                         KeyCode::Right | KeyCode::Char('l') => {
-                            if panel.is_model_select() {
-                                panel.model_nav_down();
-                            }
+                            panel.nav_right();
                         }
                         KeyCode::Enter => {
                             panel.enter();

@@ -296,31 +296,58 @@ impl SettingsPanel {
         }
     }
 
-    /// Check if the currently selected item is a ModelSelect (for special key handling).
-    pub fn is_model_select(&self) -> bool {
-        self.items
-            .get(self.selected)
-            .is_some_and(|i| matches!(i.value, SettingValue::ModelSelect { .. }))
-    }
-
-    /// Navigate within the ModelSelect options.
-    pub fn model_nav_down(&mut self) {
+    /// Navigate right within the selected item (Enum cycles forward, ModelSelect forward).
+    pub fn nav_right(&mut self) {
         if let Some(item) = self.items.get_mut(self.selected) {
-            if let SettingValue::ModelSelect { models, selected, .. } = &mut item.value {
-                // models.len() = "Add new..." index
-                if *selected < models.len() {
-                    *selected += 1;
+            match &mut item.value {
+                SettingValue::Enum { options, selected } => {
+                    *selected = (*selected + 1) % options.len();
+                    self.dirty = true;
+                    let is_provider = item.key == "defaults.provider";
+                    if is_provider {
+                        self.refresh_model_list();
+                    }
                 }
-                self.dirty = true;
+                SettingValue::ModelSelect { models, selected, .. } => {
+                    if *selected < models.len() {
+                        *selected += 1;
+                    }
+                    self.dirty = true;
+                }
+                SettingValue::Bool(b) => {
+                    *b = !*b;
+                    self.dirty = true;
+                }
+                _ => {}
             }
         }
     }
 
-    pub fn model_nav_up(&mut self) {
+    /// Navigate left within the selected item (Enum cycles backward, ModelSelect backward).
+    pub fn nav_left(&mut self) {
         if let Some(item) = self.items.get_mut(self.selected) {
-            if let SettingValue::ModelSelect { selected, .. } = &mut item.value {
-                *selected = selected.saturating_sub(1);
-                self.dirty = true;
+            match &mut item.value {
+                SettingValue::Enum { options, selected } => {
+                    *selected = if *selected == 0 {
+                        options.len() - 1
+                    } else {
+                        *selected - 1
+                    };
+                    self.dirty = true;
+                    let is_provider = item.key == "defaults.provider";
+                    if is_provider {
+                        self.refresh_model_list();
+                    }
+                }
+                SettingValue::ModelSelect { selected, .. } => {
+                    *selected = selected.saturating_sub(1);
+                    self.dirty = true;
+                }
+                SettingValue::Bool(b) => {
+                    *b = !*b;
+                    self.dirty = true;
+                }
+                _ => {}
             }
         }
     }
@@ -333,15 +360,8 @@ impl SettingsPanel {
                     *b = !*b;
                     self.dirty = true;
                 }
-                SettingValue::Enum { options, selected } => {
-                    *selected = (*selected + 1) % options.len();
-                    self.dirty = true;
-                    // If provider changed, refresh model list
-                    let is_provider = self.items.get(self.selected)
-                        .is_some_and(|i| i.key == "defaults.provider");
-                    if is_provider {
-                        self.refresh_model_list();
-                    }
+                SettingValue::Enum { .. } => {
+                    // Left/Right to cycle; Enter does nothing extra for enums
                 }
                 SettingValue::Text(s) => {
                     self.edit_buffer = s.clone();
@@ -481,6 +501,9 @@ impl SettingsPanel {
                             };
                             format!("{} ({}/{}) ←→", truncated, sel + 1, models.len())
                         }
+                    }
+                    SettingValue::Enum { options, selected: sel } => {
+                        format!("{} ({}/{}) ←→", options.get(*sel).cloned().unwrap_or_default(), sel + 1, options.len())
                     }
                     _ => item.value.display(),
                 }
