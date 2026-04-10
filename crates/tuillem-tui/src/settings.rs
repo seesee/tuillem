@@ -261,6 +261,35 @@ impl SettingsPanel {
         self.selected = self.selected.saturating_sub(1);
     }
 
+    /// Check if the currently selected item is a ModelSelect (for special key handling).
+    pub fn is_model_select(&self) -> bool {
+        self.items
+            .get(self.selected)
+            .is_some_and(|i| matches!(i.value, SettingValue::ModelSelect { .. }))
+    }
+
+    /// Navigate within the ModelSelect options.
+    pub fn model_nav_down(&mut self) {
+        if let Some(item) = self.items.get_mut(self.selected) {
+            if let SettingValue::ModelSelect { models, selected, .. } = &mut item.value {
+                // models.len() = "Add new..." index
+                if *selected < models.len() {
+                    *selected += 1;
+                }
+                self.dirty = true;
+            }
+        }
+    }
+
+    pub fn model_nav_up(&mut self) {
+        if let Some(item) = self.items.get_mut(self.selected) {
+            if let SettingValue::ModelSelect { selected, .. } = &mut item.value {
+                *selected = selected.saturating_sub(1);
+                self.dirty = true;
+            }
+        }
+    }
+
     /// Toggle or start editing the selected item.
     pub fn enter(&mut self) {
         if let Some(item) = self.items.get_mut(self.selected) {
@@ -290,8 +319,7 @@ impl SettingsPanel {
                         self.edit_buffer.clear();
                         self.editing = true;
                     } else {
-                        // Cycle through models, with "Add new..." as last option
-                        *selected = (*selected + 1) % (models.len() + 1);
+                        // Select this model as default
                         self.dirty = true;
                     }
                 }
@@ -400,9 +428,17 @@ impl SettingsPanel {
                 match &item.value {
                     SettingValue::ModelSelect { models, selected: sel, .. } => {
                         if *sel >= models.len() {
-                            "[+ Add new...]".to_string()
+                            "[+ Add new...] ↑↓".to_string()
                         } else {
-                            format!("{} ({}/{})", item.value.display(), sel + 1, models.len())
+                            let name = &models[*sel];
+                            let max_w = 25;
+                            let truncated = if name.chars().count() > max_w {
+                                let t: String = name.chars().take(max_w - 1).collect();
+                                format!("{}…", t)
+                            } else {
+                                name.clone()
+                            };
+                            format!("{} ({}/{}) ↑↓", truncated, sel + 1, models.len())
                         }
                     }
                     _ => item.value.display(),
