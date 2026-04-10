@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use ratatui::{
     Frame,
@@ -32,6 +32,11 @@ pub struct Conversation {
     pub highlight_line: Option<u16>,
     pub highlight_set_at: Option<std::time::Instant>,
     pub advance_lines: u16,
+    /// Cache of rendered lines per message. Key is (message_id, thinking_expanded).
+    /// Invalidated when content_width or layout changes.
+    render_cache: HashMap<(String, bool), Vec<Line<'static>>>,
+    cached_width: usize,
+    cached_layout: String,
 }
 
 impl Conversation {
@@ -45,6 +50,9 @@ impl Conversation {
             highlight_line: None,
             highlight_set_at: None,
             advance_lines: 5,
+            render_cache: HashMap::new(),
+            cached_width: 0,
+            cached_layout: String::new(),
         }
     }
 
@@ -90,8 +98,25 @@ impl Conversation {
         ]));
         lines.push(Line::from(""));
 
-        // Render each message
+        // Invalidate cache when width or layout changes
+        if self.cached_width != content_width || self.cached_layout != layout {
+            self.render_cache.clear();
+            self.cached_width = content_width;
+            self.cached_layout = layout.to_string();
+        }
+
+        // Render each message (with caching)
         for (idx, msg) in messages.iter().enumerate() {
+            let thinking_expanded = self.expanded_thinking.contains(&idx);
+            let cache_key = (msg.id.clone(), thinking_expanded);
+
+            if let Some(cached) = self.render_cache.get(&cache_key) {
+                lines.extend(cached.iter().cloned());
+                continue;
+            }
+
+            let mut msg_lines: Vec<Line<'static>> = Vec::new();
+
             let is_user = msg.role == "user";
 
             // Role label
@@ -113,11 +138,11 @@ impl Conversation {
             };
 
             if is_user {
-                lines.push(
+                msg_lines.push(
                     Line::from(Span::styled(role_label, role_style)).alignment(Alignment::Right),
                 );
             } else {
-                lines.push(Line::from(Span::styled(
+                msg_lines.push(Line::from(Span::styled(
                     format!("{}{}", margin_str, role_label),
                     role_style,
                 )));
@@ -126,15 +151,14 @@ impl Conversation {
             // Thinking blocks
             for block in &msg.blocks {
                 if block.block_type == "thinking" {
-                    let is_expanded = self.expanded_thinking.contains(&idx);
-                    if is_expanded {
+                    if thinking_expanded {
                         let content = block.content.as_deref().unwrap_or("");
-                        lines.push(Line::from(Span::styled(
+                        msg_lines.push(Line::from(Span::styled(
                             format!("{} [thinking] (press t to collapse)", margin_str),
                             theme.thinking_style(),
                         )));
                         for line in content.lines() {
-                            lines.push(Line::from(Span::styled(
+                            msg_lines.push(Line::from(Span::styled(
                                 format!("{}  {}", margin_str, line),
                                 theme.thinking_style(),
                             )));
@@ -147,7 +171,7 @@ impl Conversation {
                             .chars()
                             .take(40)
                             .collect::<String>();
-                        lines.push(Line::from(Span::styled(
+                        msg_lines.push(Line::from(Span::styled(
                             format!("{} [thinking] {}... (press t to expand)", margin_str, preview),
                             theme.thinking_style(),
                         )));
@@ -162,20 +186,19 @@ impl Conversation {
                     let user_style = Style::default().fg(theme.fg).bg(theme.user_msg_bg);
                     if is_loose {
                         // Loose mode: bubble effect with bg-colored blank lines above/below
-                        // First, collect all wrapped lines to find max width for uniform bubble
-                        let mut msg_lines: Vec<String> = Vec::new();
+                        let mut wrapped_lines: Vec<String> = Vec::new();
                         for text_line in content.lines() {
                             if text_line.is_empty() {
-                                msg_lines.push(String::new());
+                                wrapped_lines.push(String::new());
                             } else {
                                 for wrapped in
                                     tuillem_markdown::width::wrap_to_width(text_line, content_width)
                                 {
-                                    msg_lines.push(wrapped);
+                                    wrapped_lines.push(wrapped);
                                 }
                             }
                         }
-                        let max_line_w = msg_lines
+                        let max_line_w = wrapped_lines
                             .iter()
                             .map(|l| tuillem_markdown::width::terminal_width(l))
                             .max()
@@ -184,20 +207,20 @@ impl Conversation {
 
                         // Top blank line (bg-colored)
                         let blank = format!("{:width$}", "", width = bubble_w);
-                        lines.push(
+                        msg_lines.push(
                             Line::from(Span::styled(blank.clone(), user_style))
                                 .alignment(Alignment::Right),
                         );
                         // Message lines, padded to uniform width
-                        for ml in &msg_lines {
+                        for ml in &wrapped_lines {
                             let padded = format!(" {:width$} ", ml, width = max_line_w);
-                            lines.push(
+                            msg_lines.push(
                                 Line::from(Span::styled(padded, user_style))
                                     .alignment(Alignment::Right),
                             );
                         }
                         // Bottom blank line (bg-colored)
-                        lines.push(
+                        msg_lines.push(
                             Line::from(Span::styled(blank, user_style))
                                 .alignment(Alignment::Right),
                         );
@@ -205,12 +228,12 @@ impl Conversation {
                         // Tight mode: original behavior
                         for text_line in content.lines() {
                             if text_line.is_empty() {
-                                lines.push(Line::from(""));
+                                msg_lines.push(Line::from(""));
                             } else {
                                 for wrapped in
                                     tuillem_markdown::width::wrap_to_width(text_line, content_width)
                                 {
-                                    lines.push(
+                                    msg_lines.push(
                                         Line::from(Span::styled(
                                             format!(" {} ", wrapped),
                                             user_style,
@@ -247,7 +270,7 @@ impl Conversation {
                                     &full_text,
                                     content_width,
                                 ) {
-                                    lines.push(Line::from(Span::styled(
+                                    msg_lines.push(Line::from(Span::styled(
                                         format!("{}{}", margin_str, wrapped),
                                         style,
                                     )));
@@ -259,19 +282,23 @@ impl Conversation {
                             // Prepend margin to assistant lines
                             let mut new_spans = vec![Span::raw(margin_str.to_string())];
                             new_spans.extend(line.spans);
-                            lines.push(Line::from(new_spans));
+                            msg_lines.push(Line::from(new_spans));
                         } else {
-                            lines.push(line);
+                            msg_lines.push(line);
                         }
                     }
                 }
             }
 
             // Separator between messages
-            lines.push(Line::from(""));
+            msg_lines.push(Line::from(""));
             if is_loose {
-                lines.push(Line::from(""));
+                msg_lines.push(Line::from(""));
             }
+
+            // Store in cache and extend output
+            self.render_cache.insert(cache_key, msg_lines.clone());
+            lines.extend(msg_lines);
         }
 
         // Streaming content
@@ -489,6 +516,11 @@ impl Conversation {
         let max_offset = self.total_lines.saturating_sub(self.visible_height);
         self.scroll_offset = max_offset;
         self.scroll_state = ScrollState::FollowBottom;
+    }
+
+    /// Clear the render cache (e.g. when messages are reloaded).
+    pub fn clear_render_cache(&mut self) {
+        self.render_cache.clear();
     }
 
     pub fn toggle_thinking(&mut self, message_index: usize) {

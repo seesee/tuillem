@@ -428,6 +428,7 @@ impl App {
 
         // Rebuild input history when messages are loaded; clear transient status
         if let Event::MessagesLoaded { messages } = event {
+            self.conversation.clear_render_cache();
             self.state.status_message = None;
             self.input_history = messages
                 .iter()
