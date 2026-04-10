@@ -165,20 +165,12 @@ pub struct UiConfig {
     pub layout: String,
     #[serde(default = "default_date_format")]
     pub date_format: String,
-    #[serde(default = "default_reading_wpm")]
-    pub reading_wpm: u16,
-    #[serde(default = "default_reading_nudge_lines")]
-    pub reading_nudge_lines: u16,
-    #[serde(default = "default_true")]
-    pub reading_highlight: bool,
+    #[serde(default = "default_scroll_lines")]
+    pub scroll_lines: u16,
 }
 
-fn default_reading_wpm() -> u16 {
-    250
-}
-
-fn default_reading_nudge_lines() -> u16 {
-    3
+fn default_scroll_lines() -> u16 {
+    5
 }
 
 fn default_date_format() -> String {
@@ -195,9 +187,7 @@ impl Default for UiConfig {
             show_stats: false,
             layout: default_layout(),
             date_format: default_date_format(),
-            reading_wpm: default_reading_wpm(),
-            reading_nudge_lines: default_reading_nudge_lines(),
-            reading_highlight: true,
+            scroll_lines: default_scroll_lines(),
         }
     }
 }

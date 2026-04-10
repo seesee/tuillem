@@ -12,65 +12,15 @@ use tuillem_core::actions::MessageView;
 use crate::theme::Theme;
 
 #[derive(Debug, Clone)]
-pub struct ReadingMode {
-    pub active: bool,
-    pub paused: bool,
-    pub last_scroll: std::time::Instant,
-    pub lines_per_second: f64,
-    pub target_offset: u16,
-    pub wpm: u16,
-    pub content_width: u16,
-    pub scroll_lines: u16,     // how many lines to advance per step
-    pub highlight: bool,       // highlight the estimated reading line
-    pub reading_line: u16,     // estimated line the reader is on (relative to viewport)
-}
-
-impl ReadingMode {
-    /// Update WPM and recalculate scroll speed.
-    pub fn update_wpm(&mut self, wpm: u16) {
-        self.wpm = wpm;
-        self.recalc_speed();
-    }
-
-    /// Update the target offset (for live streaming content growth).
-    pub fn update_target(&mut self, total_lines: u16, visible_height: u16) {
-        self.target_offset = total_lines.saturating_sub(visible_height);
-    }
-
-    fn recalc_speed(&mut self) {
-        let words_per_line = (self.content_width as f64) / 5.0;
-        // Speed = how many scroll_lines-sized steps per second
-        // Each step advances scroll_lines lines worth of reading
-        let lines_per_minute = (self.wpm as f64) / words_per_line.max(1.0);
-        self.lines_per_second = lines_per_minute / 60.0;
-    }
-}
-
-impl Default for ReadingMode {
-    fn default() -> Self {
-        Self {
-            active: false,
-            paused: false,
-            last_scroll: std::time::Instant::now(),
-            lines_per_second: 0.0,
-            target_offset: 0,
-            wpm: 250,
-            content_width: 80,
-            scroll_lines: 3,
-            highlight: true,
-            reading_line: 0,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct Conversation {
     pub scroll_offset: u16,
     pub expanded_thinking: HashSet<usize>,
     pub total_lines: u16,
     pub visible_height: u16,
     pub auto_scroll: bool,
-    pub reading_mode: ReadingMode,
+    pub highlight_line: Option<u16>,       // absolute line index to highlight
+    pub highlight_set_at: Option<std::time::Instant>, // when highlight was set
+    pub advance_lines: u16,                // how many lines Enter advances (from config)
 }
 
 impl Conversation {
@@ -81,72 +31,9 @@ impl Conversation {
             total_lines: 0,
             visible_height: 0,
             auto_scroll: true,
-            reading_mode: ReadingMode::default(),
-        }
-    }
-
-    pub fn start_reading(&mut self, wpm: u16, content_width: u16, scroll_lines: u16, highlight: bool) {
-        let target = self.total_lines.saturating_sub(self.visible_height);
-        if self.scroll_offset < target {
-            let mut mode = ReadingMode {
-                active: true,
-                paused: false,
-                last_scroll: std::time::Instant::now(),
-                lines_per_second: 0.0,
-                target_offset: target,
-                wpm,
-                content_width,
-                scroll_lines: scroll_lines.max(1),
-                highlight,
-                reading_line: 0,
-            };
-            mode.recalc_speed();
-            self.reading_mode = mode;
-        }
-    }
-
-    /// Try to start reading mode if content overflows viewport (called during streaming).
-    pub fn maybe_start_reading(&mut self, wpm: u16, content_width: u16, scroll_lines: u16, highlight: bool) {
-        if !self.reading_mode.active {
-            self.start_reading(wpm, content_width, scroll_lines, highlight);
-        } else {
-            // Already reading — just update the target as content grows
-            self.reading_mode.update_target(self.total_lines, self.visible_height);
-        }
-    }
-
-    pub fn stop_reading(&mut self) {
-        self.reading_mode.active = false;
-        self.reading_mode.paused = false;
-    }
-
-    pub fn toggle_pause(&mut self) {
-        if self.reading_mode.active {
-            self.reading_mode.paused = !self.reading_mode.paused;
-            if !self.reading_mode.paused {
-                // Reset the clock so we don't jump ahead
-                self.reading_mode.last_scroll = std::time::Instant::now();
-            }
-        }
-    }
-
-    pub fn nudge_forward(&mut self, lines: u16) {
-        if self.reading_mode.active {
-            self.scroll_offset = self
-                .scroll_offset
-                .saturating_add(lines)
-                .min(self.reading_mode.target_offset);
-            self.reading_mode.last_scroll = std::time::Instant::now();
-            if self.scroll_offset >= self.reading_mode.target_offset {
-                self.reading_mode.active = false;
-            }
-        }
-    }
-
-    pub fn nudge_backward(&mut self, lines: u16) {
-        if self.reading_mode.active {
-            self.scroll_offset = self.scroll_offset.saturating_sub(lines);
-            self.reading_mode.last_scroll = std::time::Instant::now();
+            highlight_line: None,
+            highlight_set_at: None,
+            advance_lines: 5,
         }
     }
 
@@ -482,87 +369,44 @@ impl Conversation {
         self.total_lines = lines.len() as u16;
         self.visible_height = area.height;
 
-        // Reading mode auto-scroll advancement (in scroll_lines-sized chunks)
-        if self.reading_mode.active && !self.reading_mode.paused {
-            let step = self.reading_mode.scroll_lines.max(1) as f64;
-            // Time needed to read scroll_lines lines
-            let secs_per_step = if self.reading_mode.lines_per_second > 0.0 {
-                step / self.reading_mode.lines_per_second
-            } else {
-                5.0
-            };
-            let elapsed = self.reading_mode.last_scroll.elapsed().as_secs_f64();
-
-            // Track reading_line within viewport (advances smoothly)
-            let frac = (elapsed / secs_per_step).min(1.0);
-            self.reading_mode.reading_line = (frac * step) as u16;
-
-            if elapsed >= secs_per_step {
-                self.scroll_offset = self
-                    .scroll_offset
-                    .saturating_add(self.reading_mode.scroll_lines)
-                    .min(self.reading_mode.target_offset);
-                self.reading_mode.last_scroll = std::time::Instant::now();
-                self.reading_mode.reading_line = 0;
-                if self.scroll_offset >= self.reading_mode.target_offset {
-                    self.reading_mode.active = false;
-                }
+        // Auto-expire highlight after 2 seconds
+        if let Some(set_at) = self.highlight_set_at {
+            if set_at.elapsed() > std::time::Duration::from_secs(2) {
+                self.highlight_line = None;
+                self.highlight_set_at = None;
             }
-        } else if self.auto_scroll {
-            // Auto-scroll to bottom when new content arrives (non-reading mode)
+        }
+
+        if self.auto_scroll {
+            // Auto-scroll to bottom when new content arrives
             self.scroll_offset = self.total_lines.saturating_sub(self.visible_height);
         }
 
-        // Reading mode indicator bar (replaces last visible line)
-        if self.reading_mode.active {
-            let indicator = if self.reading_mode.paused {
-                format!(
-                    "{}\u{23f8} Paused {}wpm [\u{2190}\u{2192}:speed Enter:resume G:end]",
-                    margin_str,
-                    self.reading_mode.wpm
-                )
-            } else {
-                format!(
-                    "{}\u{25b6} Reading {}wpm [Space:nudge \u{2190}\u{2192}:speed Enter:pause G:end]",
-                    margin_str,
-                    self.reading_mode.wpm
-                )
-            };
-            let indicator_style = if self.reading_mode.paused {
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-                    .fg(theme.accent)
-                    .add_modifier(Modifier::BOLD)
-            };
-            lines.push(Line::from(Span::styled(indicator, indicator_style)));
-            // Update total_lines to include the indicator
-            self.total_lines = lines.len() as u16;
-        }
-
-        // Apply reading highlight near the bottom of the viewport
-        if self.reading_mode.active && self.reading_mode.highlight && !self.reading_mode.paused {
-            let vh = self.visible_height as usize;
-            let sl = self.reading_mode.scroll_lines as usize;
-
-            // Base offset from bottom: scroll_lines up from the bottom edge,
-            // but cap at 50% of viewport so it doesn't go above midpoint
-            let base_from_bottom = sl.min(vh / 2);
-            let base_in_viewport = vh.saturating_sub(base_from_bottom).saturating_sub(1);
-
-            // reading_line progresses through the chunk (0..scroll_lines)
-            let progress = self.reading_mode.reading_line as usize;
-            let highlight_viewport_pos = base_in_viewport.saturating_sub(sl.saturating_sub(progress));
-
-            let highlight_line_idx = self.scroll_offset as usize + highlight_viewport_pos;
-            if highlight_line_idx < lines.len() {
+        // Apply highlight to the target line (full width)
+        if let Some(hl) = self.highlight_line {
+            let hl_idx = hl as usize;
+            if hl_idx < lines.len() {
                 let highlight_bg = theme.user_msg_bg;
-                let line = &mut lines[highlight_line_idx];
-                let new_spans: Vec<Span<'static>> = line.spans.iter().map(|span| {
-                    Span::styled(span.content.to_string(), span.style.bg(highlight_bg))
-                }).collect();
+                let content_w = area.width as usize;
+                let line = &mut lines[hl_idx];
+                // Calculate current visible text width
+                let text_w: usize = line
+                    .spans
+                    .iter()
+                    .map(|s| tuillem_markdown::width::terminal_width(&s.content))
+                    .sum();
+                let pad = content_w.saturating_sub(text_w);
+                let mut new_spans: Vec<Span<'static>> = line
+                    .spans
+                    .iter()
+                    .map(|span| Span::styled(span.content.to_string(), span.style.bg(highlight_bg)))
+                    .collect();
+                if pad > 0 {
+                    new_spans.push(Span::styled(
+                        " ".repeat(pad),
+                        Style::default().bg(highlight_bg),
+                    ));
+                }
                 *line = Line::from(new_spans);
             }
         }

@@ -73,7 +73,7 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
         Line::from(Span::styled("Input", accent)),
         Line::from(vec![
             Span::styled("  Enter     ", normal),
-            Span::styled("Send message", dim),
+            Span::styled("Send message (or advance N lines if empty)", dim),
         ]),
         Line::from(vec![
             Span::styled("  Shift+Ent ", normal),

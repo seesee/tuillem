@@ -157,9 +157,8 @@ async fn main() -> Result<()> {
     app.show_stats = config.ui.show_stats;
     app.layout = config.ui.layout.clone();
     app.date_format = config.ui.date_format.clone();
-    app.reading_wpm = config.ui.reading_wpm;
-    app.reading_nudge_lines = config.ui.reading_nudge_lines;
-    app.reading_highlight = config.ui.reading_highlight;
+    app.scroll_lines = config.ui.scroll_lines;
+    app.conversation.advance_lines = config.ui.scroll_lines;
     app.default_provider = config
         .defaults
         .provider

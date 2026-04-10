@@ -76,9 +76,7 @@ impl SettingsPanel {
         show_stats: bool,
         layout: &str,
         date_format: &str,
-        reading_wpm: u16,
-        reading_nudge_lines: u16,
-        reading_highlight: bool,
+        scroll_lines: u16,
     ) -> Self {
         let items = vec![
             SettingItem {
@@ -189,19 +187,9 @@ impl SettingsPanel {
                 },
             },
             SettingItem {
-                label: "Reading Speed (WPM)".to_string(),
-                key: "ui.reading_wpm".to_string(),
-                value: SettingValue::Text(reading_wpm.to_string()),
-            },
-            SettingItem {
-                label: "Nudge Lines".to_string(),
-                key: "ui.reading_nudge_lines".to_string(),
-                value: SettingValue::Text(reading_nudge_lines.to_string()),
-            },
-            SettingItem {
-                label: "Reading Highlight".to_string(),
-                key: "ui.reading_highlight".to_string(),
-                value: SettingValue::Bool(reading_highlight),
+                label: "Scroll Lines".to_string(),
+                key: "ui.scroll_lines".to_string(),
+                value: SettingValue::Text(scroll_lines.to_string()),
             },
             SettingItem {
                 label: "System Prompt".to_string(),

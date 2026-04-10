@@ -89,9 +89,7 @@ pub struct App {
     pub show_stats: bool,
     pub layout: String,
     pub date_format: String,
-    pub reading_wpm: u16,
-    pub reading_nudge_lines: u16,
-    pub reading_highlight: bool,
+    pub scroll_lines: u16,
     pub default_provider: String,
     pub default_model: String,
     /// Sidebar interaction state
@@ -133,9 +131,7 @@ impl App {
             show_stats: false,
             layout: "loose".to_string(),
             date_format: "dd/mm/yyyy".to_string(),
-            reading_wpm: 250,
-            reading_nudge_lines: 3,
-            reading_highlight: true,
+            scroll_lines: 5,
             default_provider: String::new(),
             default_model: String::new(),
             sidebar_confirm_delete: None,
@@ -418,54 +414,31 @@ impl App {
         // Scroll behavior for streaming and message events
         match event {
             Event::StreamStarted => {
-                // Jump to bottom to show the user's message, then stop auto-scroll
-                // so reading mode takes over as the response streams in
+                // Jump to bottom to show user's message + throbber
                 self.conversation.scroll_offset = self
                     .conversation
                     .total_lines
                     .saturating_sub(self.conversation.visible_height);
-                self.conversation.auto_scroll = false;
-                self.conversation.stop_reading();
+                self.conversation.auto_scroll = true;
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
-                // During streaming, start reading mode when content overflows viewport
-                let max_offset = self
-                    .conversation
-                    .total_lines
-                    .saturating_sub(self.conversation.visible_height);
-                if self.conversation.scroll_offset < max_offset {
-                    let cw = self.conversation.visible_height; // approximate, corrected by render
-                    self.conversation.maybe_start_reading(
-                        self.reading_wpm, cw,
-                        self.reading_nudge_lines,
-                        self.reading_highlight,
-                    );
-                }
-            }
-            Event::StreamDone { .. } => {
-                // After streaming, update target to final content length
-                if self.conversation.reading_mode.active {
-                    self.conversation.reading_mode.update_target(
-                        self.conversation.total_lines,
-                        self.conversation.visible_height,
-                    );
-                } else {
-                    // Start reading if there's content below viewport
+                // While streaming with auto_scroll, keep viewport at bottom.
+                // When content exceeds viewport height, stop auto_scroll so
+                // the user sees the top of the response.
+                if self.conversation.auto_scroll {
                     let max_offset = self
                         .conversation
                         .total_lines
                         .saturating_sub(self.conversation.visible_height);
-                    if self.conversation.scroll_offset < max_offset {
-                        let cw = self.conversation.visible_height;
-                        self.conversation.start_reading(
-                            self.reading_wpm, cw,
-                            self.reading_nudge_lines,
-                            self.reading_highlight,
-                        );
-                    } else {
-                        self.conversation.scroll_to_bottom();
+                    if self.conversation.scroll_offset < max_offset
+                        && self.conversation.total_lines > self.conversation.visible_height
+                    {
+                        self.conversation.auto_scroll = false;
                     }
                 }
+            }
+            Event::StreamDone { .. } => {
+                // Nothing special — content is complete
             }
             Event::MessagesLoaded { .. } | Event::ResponseError { .. } => {
                 self.conversation.scroll_to_bottom();
@@ -556,46 +529,6 @@ impl App {
                 return;
             }
             _ => {}
-        }
-
-        // Reading mode global keys (work regardless of focus, checked before Esc handler)
-        if self.conversation.reading_mode.active {
-            match key.code {
-                KeyCode::Char(' ') => {
-                    self.conversation.nudge_forward(self.reading_nudge_lines);
-                    return;
-                }
-                KeyCode::Backspace => {
-                    self.conversation.nudge_backward(self.reading_nudge_lines);
-                    return;
-                }
-                KeyCode::Enter => {
-                    self.conversation.toggle_pause();
-                    return;
-                }
-                KeyCode::Char('G') => {
-                    self.conversation.stop_reading();
-                    self.conversation.scroll_to_bottom();
-                    return;
-                }
-                KeyCode::Esc => {
-                    self.conversation.stop_reading();
-                    return;
-                }
-                KeyCode::Right | KeyCode::Char('l') => {
-                    // Increase WPM by 25
-                    self.reading_wpm = self.reading_wpm.saturating_add(25).min(1000);
-                    self.conversation.reading_mode.update_wpm(self.reading_wpm);
-                    return;
-                }
-                KeyCode::Left | KeyCode::Char('h') => {
-                    // Decrease WPM by 25
-                    self.reading_wpm = self.reading_wpm.saturating_sub(25).max(25);
-                    self.conversation.reading_mode.update_wpm(self.reading_wpm);
-                    return;
-                }
-                _ => {}
-            }
         }
 
         // Escape: cancel streaming if active, otherwise return to input
@@ -979,6 +912,26 @@ impl App {
             KeyCode::Enter => {
                 if key.modifiers.contains(KeyModifiers::SHIFT) {
                     self.input.insert_char('\n');
+                } else if self.input.content.trim().is_empty() && !self.state.is_streaming {
+                    // Empty input + not streaming: advance scroll
+                    let advance = self.scroll_lines;
+                    self.conversation.scroll_offset = self
+                        .conversation
+                        .scroll_offset
+                        .saturating_add(advance);
+                    // Clamp to max
+                    let max_offset = self
+                        .conversation
+                        .total_lines
+                        .saturating_sub(self.conversation.visible_height);
+                    self.conversation.scroll_offset = self.conversation.scroll_offset.min(max_offset);
+                    // Re-enable auto_scroll if at bottom
+                    if self.conversation.scroll_offset >= max_offset {
+                        self.conversation.auto_scroll = true;
+                    }
+                    // Set highlight on the first line of newly visible content
+                    self.conversation.highlight_line = Some(self.conversation.scroll_offset);
+                    self.conversation.highlight_set_at = Some(std::time::Instant::now());
                 } else {
                     let content = self.input.take_content();
                     if !content.trim().is_empty() {
@@ -1096,9 +1049,7 @@ impl App {
             self.show_stats,
             &self.layout,
             &self.date_format,
-            self.reading_wpm,
-            self.reading_nudge_lines,
-            self.reading_highlight,
+            self.scroll_lines,
         );
         self.overlay = Overlay::Settings(panel);
     }
@@ -1142,18 +1093,11 @@ impl App {
             if let Some(v) = panel.get_value("ui.date_format") {
                 self.date_format = v;
             }
-            if let Some(v) = panel.get_value("ui.reading_wpm") {
-                if let Ok(wpm) = v.parse::<u16>() {
-                    self.reading_wpm = wpm;
-                }
-            }
-            if let Some(v) = panel.get_value("ui.reading_nudge_lines") {
+            if let Some(v) = panel.get_value("ui.scroll_lines") {
                 if let Ok(lines) = v.parse::<u16>() {
-                    self.reading_nudge_lines = lines;
+                    self.scroll_lines = lines.max(1);
+                    self.conversation.advance_lines = self.scroll_lines;
                 }
-            }
-            if let Some(v) = panel.get_value("ui.reading_highlight") {
-                self.reading_highlight = v == "on";
             }
             // Apply theme instantly
             self.theme = Theme::from_config(&self.config_theme, &std::collections::HashMap::new());
@@ -1185,9 +1129,7 @@ impl App {
         config.ui.show_stats = self.show_stats;
         config.ui.layout = self.layout.clone();
         config.ui.date_format = self.date_format.clone();
-        config.ui.reading_wpm = self.reading_wpm;
-        config.ui.reading_nudge_lines = self.reading_nudge_lines;
-        config.ui.reading_highlight = self.reading_highlight;
+        config.ui.scroll_lines = self.scroll_lines;
         if !self.default_provider.is_empty() {
             config.defaults.provider = Some(self.default_provider.clone());
         }
