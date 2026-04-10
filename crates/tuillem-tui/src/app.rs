@@ -641,7 +641,12 @@ impl App {
                             panel.nav_right();
                         }
                         KeyCode::Enter => {
-                            panel.enter();
+                            if panel.is_edit_yaml_action() {
+                                self.overlay = Overlay::None;
+                                self.edit_config_yaml();
+                            } else {
+                                panel.enter();
+                            }
                         }
                         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             self.save_settings();
@@ -1382,6 +1387,135 @@ impl App {
             && let Ok(content) = std::fs::read_to_string(&path)
         {
             self.input.set_content(content);
+        }
+    }
+
+    /// Open config YAML in editor with validation loop.
+    /// Edits a copy; only replaces the real config if it parses correctly.
+    fn edit_config_yaml(&mut self) {
+        use crossterm::{
+            execute,
+            terminal::{
+                EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+            },
+        };
+
+        let config_path = tuillem_config::Config::default_path();
+
+        // Read current config (or create empty)
+        let original_yaml = std::fs::read_to_string(&config_path).unwrap_or_default();
+
+        // Write to a temp file for editing
+        let tmp = match tempfile::NamedTempFile::new_in(
+            config_path.parent().unwrap_or(std::path::Path::new(".")),
+        ) {
+            Ok(t) => t,
+            Err(_) => {
+                self.state.error = Some("Failed to create temp file".to_string());
+                return;
+            }
+        };
+        let tmp_path = tmp.path().to_path_buf();
+        if std::fs::write(&tmp_path, &original_yaml).is_err() {
+            self.state.error = Some("Failed to write temp config".to_string());
+            return;
+        }
+
+        loop {
+            // Suspend terminal and open editor
+            let _ = disable_raw_mode();
+            let _ = execute!(std::io::stdout(), LeaveAlternateScreen);
+
+            let status = std::process::Command::new(&self.editor_command)
+                .arg(&tmp_path)
+                .status();
+
+            // Restore terminal
+            let _ = execute!(std::io::stdout(), EnterAlternateScreen);
+            let _ = enable_raw_mode();
+            self.needs_redraw = true;
+
+            // Check if editor exited cleanly
+            let editor_ok = status.is_ok_and(|s| s.success());
+            if !editor_ok {
+                // Editor failed or user quit — discard changes
+                let _ = std::fs::remove_file(&tmp_path);
+                self.state.status_message = Some((
+                    "Config edit cancelled".to_string(),
+                    std::time::Instant::now(),
+                ));
+                return;
+            }
+
+            // Read the edited file
+            let edited_yaml = match std::fs::read_to_string(&tmp_path) {
+                Ok(y) => y,
+                Err(_) => {
+                    let _ = std::fs::remove_file(&tmp_path);
+                    self.state.error = Some("Failed to read edited config".to_string());
+                    return;
+                }
+            };
+
+            // Validate by parsing
+            match tuillem_config::Config::from_yaml(&edited_yaml) {
+                Ok(_) => {
+                    // Valid — replace the real config
+                    if let Some(parent) = config_path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    match std::fs::write(&config_path, &edited_yaml) {
+                        Ok(_) => {
+                            let _ = std::fs::remove_file(&tmp_path);
+                            self.state.status_message = Some((
+                                "Config saved! Restart to apply all changes.".to_string(),
+                                std::time::Instant::now(),
+                            ));
+                            return;
+                        }
+                        Err(e) => {
+                            let _ = std::fs::remove_file(&tmp_path);
+                            self.state.error = Some(format!("Failed to write config: {e}"));
+                            return;
+                        }
+                    }
+                }
+                Err(e) => {
+                    // Invalid YAML — show error and prompt
+                    let _ = disable_raw_mode();
+                    let _ = execute!(std::io::stdout(), LeaveAlternateScreen);
+
+                    eprintln!("\n  Config validation error:\n");
+                    eprintln!("  {}\n", e);
+                    eprintln!("  Press 'r' to re-edit, or any other key to discard changes.");
+
+                    // Wait for a keypress
+                    if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+                        let _ = execute!(std::io::stdout(), EnterAlternateScreen);
+                        let _ = enable_raw_mode();
+                        self.needs_redraw = true;
+
+                        if key.code == crossterm::event::KeyCode::Char('r') {
+                            // Loop back to re-edit
+                            continue;
+                        } else {
+                            // Discard
+                            let _ = std::fs::remove_file(&tmp_path);
+                            self.state.status_message = Some((
+                                "Config changes discarded".to_string(),
+                                std::time::Instant::now(),
+                            ));
+                            return;
+                        }
+                    } else {
+                        let _ = execute!(std::io::stdout(), EnterAlternateScreen);
+                        let _ = enable_raw_mode();
+                        self.needs_redraw = true;
+                        let _ = std::fs::remove_file(&tmp_path);
+                        return;
+                    }
+                }
+            }
         }
     }
 }

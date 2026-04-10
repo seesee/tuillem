@@ -22,6 +22,8 @@ pub enum SettingValue {
         selected: usize,
         adding: bool,
     },
+    /// Action button (e.g. "Edit Config YAML")
+    Action(String),
 }
 
 impl SettingValue {
@@ -49,6 +51,7 @@ impl SettingValue {
             SettingValue::ModelSelect { models, selected, .. } => {
                 models.get(*selected).cloned().unwrap_or_default()
             }
+            SettingValue::Action(label) => label.clone(),
         }
     }
 }
@@ -241,6 +244,11 @@ impl SettingsPanel {
                 key: "defaults.system_prompt".to_string(),
                 value: SettingValue::Text(system_prompt.to_string()),
             },
+            SettingItem {
+                label: "".to_string(),
+                key: "action.edit_yaml".to_string(),
+                value: SettingValue::Action("Open config in editor...".to_string()),
+            },
         ];
 
         Self {
@@ -294,6 +302,13 @@ impl SettingsPanel {
                 }
             };
         }
+    }
+
+    /// Check if the selected item is the "Edit YAML" action.
+    pub fn is_edit_yaml_action(&self) -> bool {
+        self.items
+            .get(self.selected)
+            .is_some_and(|i| i.key == "action.edit_yaml")
     }
 
     /// Navigate right within the selected item (Enum cycles forward, ModelSelect forward).
@@ -366,6 +381,9 @@ impl SettingsPanel {
                 SettingValue::Text(s) => {
                     self.edit_buffer = s.clone();
                     self.editing = true;
+                }
+                SettingValue::Action(_) => {
+                    // Handled by the app — signals to open YAML editor
                 }
                 SettingValue::ModelSelect {
                     models,
@@ -505,6 +523,7 @@ impl SettingsPanel {
                     SettingValue::Enum { options, selected: sel } => {
                         format!("{} ({}/{}) ←→", options.get(*sel).cloned().unwrap_or_default(), sel + 1, options.len())
                     }
+                    SettingValue::Action(label) => format!("▸ {}", label),
                     _ => item.value.display(),
                 }
             };
