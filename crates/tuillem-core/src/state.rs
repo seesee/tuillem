@@ -30,8 +30,8 @@ pub struct AppState {
     pub search_query: String,
     pub pending_tool_call: Option<PendingToolCall>,
     pub error: Option<String>,
-    /// Transient status message (e.g. "Copied to clipboard"). Cleared on next action.
-    pub status_message: Option<String>,
+    /// Transient status message (e.g. "Copied to clipboard"). Auto-expires after 5s.
+    pub status_message: Option<(String, std::time::Instant)>,
     pub last_response_stats: Option<ResponseStats>,
 }
 

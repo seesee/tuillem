@@ -125,6 +125,13 @@ impl App {
     }
 
     pub fn draw(&mut self, frame: &mut Frame) {
+        // Auto-expire status messages after 5 seconds
+        if let Some((_, created)) = &self.state.status_message {
+            if created.elapsed() > std::time::Duration::from_secs(5) {
+                self.state.status_message = None;
+            }
+        }
+
         let size = frame.area();
 
         // Horizontal split: sidebar | right
@@ -169,7 +176,7 @@ impl App {
             self.state.is_streaming,
             &self.state.current_model,
             self.state.error.as_deref(),
-            self.state.status_message.as_deref(),
+            self.state.status_message.as_ref().map(|(msg, _)| msg.as_str()),
             self.focus == Focus::Conversation,
             &self.theme,
         );
@@ -372,8 +379,9 @@ impl App {
             self.sidebar.selected = 0;
         }
 
-        // Rebuild input history when messages are loaded
+        // Rebuild input history when messages are loaded; clear transient status
         if let Event::MessagesLoaded { messages } = event {
+            self.state.status_message = None;
             self.input_history = messages
                 .iter()
                 .filter(|m| m.role == "user")
@@ -642,7 +650,7 @@ impl App {
                         && clipboard.set_text(&block_text).is_ok()
                     {
                         self.state.status_message =
-                            Some("Copied code block to clipboard".to_string());
+                            Some(("Copied code block to clipboard".to_string(), std::time::Instant::now()));
                     }
                 }
                 _ => {}
@@ -1005,7 +1013,7 @@ impl App {
             if let Ok(mut clipboard) = arboard::Clipboard::new()
                 && clipboard.set_text(text).is_ok()
             {
-                self.state.status_message = Some("Copied response to clipboard".to_string());
+                self.state.status_message = Some(("Copied response to clipboard".to_string(), std::time::Instant::now()));
             }
         }
     }
@@ -1058,7 +1066,7 @@ impl App {
             if let Ok(mut clipboard) = arboard::Clipboard::new()
                 && clipboard.set_text(&blocks[0]).is_ok()
             {
-                self.state.status_message = Some("Copied code block to clipboard".to_string());
+                self.state.status_message = Some(("Copied code block to clipboard".to_string(), std::time::Instant::now()));
             }
             return;
         }
