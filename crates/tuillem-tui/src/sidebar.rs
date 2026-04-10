@@ -4,7 +4,7 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 use tuillem_core::actions::SessionSummary;
 
@@ -18,6 +18,8 @@ pub struct Sidebar {
     pub search_focused: bool,
     /// Session IDs that matched an FTS content search (None = no search active)
     pub content_match_ids: Option<std::collections::HashSet<String>>,
+    /// Number of session items visible in the last render (used for scroll calculations)
+    visible_count: usize,
 }
 
 impl Sidebar {
@@ -28,6 +30,7 @@ impl Sidebar {
             search_input: String::new(),
             search_focused: false,
             content_match_ids: None,
+            visible_count: 0,
         }
     }
 
@@ -57,7 +60,7 @@ impl Sidebar {
     }
 
     pub fn render(
-        &self,
+        &mut self,
         frame: &mut Frame,
         area: Rect,
         sessions: &[SessionSummary],
@@ -237,17 +240,39 @@ impl Sidebar {
             }
         }
 
+        // Track how many session items fit on screen for scroll calculations
+        self.visible_count = item_index;
+
         let list = List::new(items);
         frame.render_widget(list, list_area);
+
+        // Render scrollbar if there are more sessions than visible
+        let total_sessions = filtered.len();
+        if total_sessions > self.visible_count {
+            let mut scrollbar_state = ScrollbarState::new(total_sessions.saturating_sub(self.visible_count))
+                .position(self.scroll_offset);
+            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                .style(Style::default().fg(theme.thinking_fg));
+            frame.render_stateful_widget(scrollbar, list_area, &mut scrollbar_state);
+        }
     }
 
     pub fn move_up(&mut self, count: usize) {
         self.selected = self.selected.saturating_sub(count);
+        // Keep selection visible
+        if self.selected < self.scroll_offset {
+            self.scroll_offset = self.selected;
+        }
     }
 
     pub fn move_down(&mut self, session_count: usize, count: usize) {
         if session_count > 0 {
             self.selected = (self.selected + count).min(session_count - 1);
+            // Keep selection visible — use visible_count from last render
+            let visible = if self.visible_count > 0 { self.visible_count } else { 10 };
+            if self.selected >= self.scroll_offset + visible {
+                self.scroll_offset = self.selected + 1 - visible;
+            }
         }
     }
 }

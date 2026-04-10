@@ -57,19 +57,16 @@ impl Coordinator {
     ) {
         info!("Coordinator run() started, waiting for actions...");
         // On startup, load sessions and select the most recent one
-        if let Ok(sessions) = self.db.list_sessions() {
-            debug!("Loaded {} existing sessions from DB", sessions.len());
-            let summaries: Vec<SessionSummary> = sessions
+        if let Ok(sessions_with_preview) = self.db.list_sessions_with_preview() {
+            debug!("Loaded {} existing sessions from DB", sessions_with_preview.len());
+            let summaries: Vec<SessionSummary> = sessions_with_preview
                 .iter()
-                .map(|s| {
-                    let preview = self.db.get_session_last_message(&s.id).ok().flatten();
-                    session_to_summary(s, preview)
-                })
+                .map(|(s, preview)| session_to_summary(s, preview.clone()))
                 .collect();
             let _ = event_tx.send(Event::SessionsLoaded {
                 sessions: summaries,
             });
-            if let Some(first) = sessions.first() {
+            if let Some((first, _)) = sessions_with_preview.first() {
                 self.active_session_id = Some(first.id.clone());
                 let _ = event_tx.send(Event::SessionSelected {
                     id: first.id.clone(),
@@ -684,7 +681,6 @@ impl Coordinator {
                             id: session_id.to_string(),
                             title: title.clone(),
                         });
-                        self.send_sessions_loaded(event_tx);
                     }
                 } else {
                     // Fallback: use truncated first user message as title
@@ -696,7 +692,6 @@ impl Coordinator {
                                 id: session_id.to_string(),
                                 title: fallback,
                             });
-                            self.send_sessions_loaded(event_tx);
                         }
                     }
                 }
@@ -711,7 +706,6 @@ impl Coordinator {
                             id: session_id.to_string(),
                             title: fallback,
                         });
-                        self.send_sessions_loaded(event_tx);
                     }
                 }
             }
@@ -816,14 +810,12 @@ impl Coordinator {
     }
 
     /// Refresh the full sessions list (with previews) and send to UI.
+    /// Uses a single query to fetch sessions + last message preview.
     fn send_sessions_loaded(&self, event_tx: &mpsc::UnboundedSender<Event>) {
-        if let Ok(sessions) = self.db.list_sessions() {
-            let summaries = sessions
+        if let Ok(sessions_with_preview) = self.db.list_sessions_with_preview() {
+            let summaries = sessions_with_preview
                 .iter()
-                .map(|s| {
-                    let preview = self.db.get_session_last_message(&s.id).ok().flatten();
-                    session_to_summary(s, preview)
-                })
+                .map(|(s, preview)| session_to_summary(s, preview.clone()))
                 .collect();
             let _ = event_tx.send(Event::SessionsLoaded {
                 sessions: summaries,

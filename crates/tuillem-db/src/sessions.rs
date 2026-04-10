@@ -131,6 +131,50 @@ impl Db {
         Ok(())
     }
 
+    /// Get all sessions with their last message preview in a single query.
+    /// Avoids N+1 queries when loading the sidebar.
+    pub fn list_sessions_with_preview(&self) -> Result<Vec<(Session, Option<String>)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT s.id, s.title, s.created_at, s.updated_at, s.metadata, \
+             (SELECT m.content FROM messages m WHERE m.session_id = s.id ORDER BY m.created_at DESC LIMIT 1) as last_message \
+             FROM sessions s ORDER BY s.updated_at DESC",
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            let created_str: String = row.get(2)?;
+            let updated_str: String = row.get(3)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                created_str,
+                updated_str,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, Option<String>>(5)?,
+            ))
+        })?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            let r = row?;
+            let tags = self.get_session_tags(&r.0)?;
+            let session = Session {
+                id: r.0,
+                title: r.1,
+                created_at: DateTime::parse_from_rfc3339(&r.2)
+                    .unwrap_or_default()
+                    .with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&r.3)
+                    .unwrap_or_default()
+                    .with_timezone(&Utc),
+                metadata: r.4,
+                tags,
+            };
+            results.push((session, r.5));
+        }
+
+        Ok(results)
+    }
+
     /// Get the last message content for a session (for sidebar preview).
     pub fn get_session_last_message(&self, id: &str) -> Result<Option<String>, DbError> {
         let mut stmt = self.conn.prepare(
