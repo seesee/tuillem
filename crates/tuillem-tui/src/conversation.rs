@@ -186,15 +186,6 @@ impl Conversation {
                 }
             }
 
-            // Token usage
-            if msg.token_usage_in.is_some() || msg.token_usage_out.is_some() {
-                let usage_in = msg.token_usage_in.unwrap_or(0);
-                let usage_out = msg.token_usage_out.unwrap_or(0);
-                lines.push(Line::from(Span::styled(
-                    format!(" [tokens: {} in / {} out]", usage_in, usage_out),
-                    theme.thinking_style(),
-                )));
-            }
 
             lines.push(Line::from(""));
         }

@@ -238,9 +238,9 @@ impl App {
 
             let approx = if stats.estimated { "~" } else { "" };
             let stats_text = format!(
-                "Tokens: {}{}>{}  {}{:.1} tok/s  ~{:.0}% ctx",
+                "{}Tokens: {}>{}  {:.1} tok/s  ~{:.0}% ctx",
                 approx, stats.tokens_in, stats.tokens_out,
-                approx, toks_per_sec, ctx_pct
+                toks_per_sec, ctx_pct
             );
 
             let style = Style::default().fg(self.theme.thinking_fg);
