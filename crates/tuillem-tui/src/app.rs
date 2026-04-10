@@ -947,6 +947,18 @@ impl App {
                     self.update_focus_state();
                 }
             }
+            KeyCode::PageUp => {
+                self.conversation.scroll_up(self.conversation.visible_height.saturating_sub(2));
+            }
+            KeyCode::PageDown => {
+                self.conversation.scroll_down(self.conversation.visible_height.saturating_sub(2));
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.conversation.scroll_up(self.conversation.visible_height / 2);
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.conversation.scroll_down(self.conversation.visible_height / 2);
+            }
             KeyCode::Char('d') => {
                 // Start delete confirmation
                 let filtered = self.sidebar.filtered_sessions(&self.state.sessions);
