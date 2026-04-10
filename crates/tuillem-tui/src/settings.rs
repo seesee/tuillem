@@ -469,7 +469,7 @@ impl SettingsPanel {
                 match &item.value {
                     SettingValue::ModelSelect { models, selected: sel, .. } => {
                         if *sel >= models.len() {
-                            "[+ Add new...] ↑↓".to_string()
+                            "[+ Add new...] ←→".to_string()
                         } else {
                             let name = &models[*sel];
                             let max_w = 25;
@@ -479,7 +479,7 @@ impl SettingsPanel {
                             } else {
                                 name.clone()
                             };
-                            format!("{} ({}/{}) ↑↓", truncated, sel + 1, models.len())
+                            format!("{} ({}/{}) ←→", truncated, sel + 1, models.len())
                         }
                     }
                     _ => item.value.display(),

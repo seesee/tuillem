@@ -628,29 +628,24 @@ impl App {
                         KeyCode::Esc => {
                             self.overlay = Overlay::None;
                         }
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            if panel.is_model_select() {
-                                panel.model_nav_down();
-                            } else {
-                                panel.move_down();
-                            }
+                        KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => {
+                            panel.move_down();
                         }
-                        KeyCode::Char('k') | KeyCode::Up => {
+                        KeyCode::Char('k') | KeyCode::Up | KeyCode::BackTab => {
+                            panel.move_up();
+                        }
+                        KeyCode::Left | KeyCode::Char('h') => {
                             if panel.is_model_select() {
                                 panel.model_nav_up();
-                            } else {
-                                panel.move_up();
+                            }
+                        }
+                        KeyCode::Right | KeyCode::Char('l') => {
+                            if panel.is_model_select() {
+                                panel.model_nav_down();
                             }
                         }
                         KeyCode::Enter => {
                             panel.enter();
-                        }
-                        KeyCode::Tab => {
-                            // Tab always moves between settings items (even on ModelSelect)
-                            panel.move_down();
-                        }
-                        KeyCode::BackTab => {
-                            panel.move_up();
                         }
                         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             self.save_settings();
