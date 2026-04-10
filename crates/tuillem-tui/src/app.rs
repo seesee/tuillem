@@ -912,6 +912,8 @@ impl App {
                     let _ = self.action_tx.send(Action::SelectSession {
                         id: session.id.clone(),
                     });
+                    self.focus = Focus::Input;
+                    self.update_focus_state();
                 }
             }
             KeyCode::Char('d') => {
