@@ -23,6 +23,7 @@ pub struct Theme {
     pub heading: Color,
     pub link: Color,
     pub tag: Color,
+    pub sidebar_selected_bg: Color,
 }
 
 impl Theme {
@@ -47,6 +48,7 @@ impl Theme {
             heading: Color::Rgb(180, 190, 254),          // #b4befe
             link: Color::Rgb(116, 199, 236),             // #74c7ec
             tag: Color::Rgb(203, 166, 247),              // #cba6f7
+            sidebar_selected_bg: Color::Rgb(49, 50, 68),   // #313244 (surface0)
         }
     }
 
@@ -71,6 +73,7 @@ impl Theme {
             heading: Color::Rgb(114, 135, 253),          // #7287fd
             link: Color::Rgb(4, 165, 229),               // #04a5e5
             tag: Color::Rgb(136, 57, 239),               // #8839ef
+            sidebar_selected_bg: Color::Rgb(188, 192, 204), // #bcc0cc (surface1)
         }
     }
 
@@ -95,6 +98,7 @@ impl Theme {
             heading: Color::Rgb(255, 121, 198),          // #ff79c6
             link: Color::Rgb(139, 233, 253),             // #8be9fd
             tag: Color::Rgb(189, 147, 249),              // #bd93f9
+            sidebar_selected_bg: Color::Rgb(68, 71, 90),   // #44475a (selection)
         }
     }
 
@@ -119,6 +123,7 @@ impl Theme {
             heading: Color::Rgb(129, 161, 193),          // #81a1c1
             link: Color::Rgb(136, 192, 208),             // #88c0d0
             tag: Color::Rgb(180, 142, 173),              // #b48ead
+            sidebar_selected_bg: Color::Rgb(76, 86, 106),   // #4c566a (nord3)
         }
     }
 
@@ -143,6 +148,7 @@ impl Theme {
             heading: Color::Rgb(131, 165, 152),          // #83a598
             link: Color::Rgb(131, 165, 152),             // #83a598
             tag: Color::Rgb(211, 134, 155),              // #d3869b
+            sidebar_selected_bg: Color::Rgb(80, 73, 69),   // #504945 (bg2)
         }
     }
 
@@ -167,6 +173,7 @@ impl Theme {
             heading: Color::Rgb(187, 154, 247),          // #bb9af7
             link: Color::Rgb(125, 207, 255),             // #7dcfff
             tag: Color::Rgb(187, 154, 247),              // #bb9af7
+            sidebar_selected_bg: Color::Rgb(54, 58, 79),   // #363a4f
         }
     }
 
@@ -191,6 +198,7 @@ impl Theme {
             heading: Color::Rgb(108, 113, 196),          // #6c71c4
             link: Color::Rgb(42, 161, 152),              // #2aa198
             tag: Color::Rgb(108, 113, 196),              // #6c71c4
+            sidebar_selected_bg: Color::Rgb(0, 54, 66),     // #003642 (base02 lighter)
         }
     }
 
@@ -215,6 +223,7 @@ impl Theme {
             heading: Color::Rgb(108, 113, 196),          // #6c71c4
             link: Color::Rgb(42, 161, 152),              // #2aa198
             tag: Color::Rgb(211, 54, 130),               // #d33682
+            sidebar_selected_bg: Color::Rgb(253, 246, 227), // #fdf6e3 (base3)
         }
     }
 
@@ -239,6 +248,7 @@ impl Theme {
             heading: Color::Rgb(9, 105, 218),            // #0969da
             link: Color::Rgb(9, 105, 218),               // #0969da
             tag: Color::Rgb(130, 80, 223),               // #8250df
+            sidebar_selected_bg: Color::Rgb(221, 244, 255), // #ddf4ff (blue tint)
         }
     }
 
@@ -263,6 +273,7 @@ impl Theme {
             heading: Color::Rgb(144, 122, 169),          // #907aa9
             link: Color::Rgb(40, 105, 131),              // #286983
             tag: Color::Rgb(144, 122, 169),              // #907aa9
+            sidebar_selected_bg: Color::Rgb(242, 233, 222), // #f2e9de (surface)
         }
     }
 
@@ -350,6 +361,9 @@ impl Theme {
         if let Some(ref c) = colors.tag {
             self.tag = parse_hex(c);
         }
+        if let Some(ref c) = colors.sidebar_selected_bg {
+            self.sidebar_selected_bg = parse_hex(c);
+        }
         self
     }
 
@@ -362,7 +376,7 @@ impl Theme {
     pub fn sidebar_selected_style(&self) -> Style {
         Style::default()
             .fg(self.sidebar_selected)
-            .bg(self.user_msg_bg)
+            .bg(self.sidebar_selected_bg)
     }
 
     pub fn user_message_style(&self) -> Style {

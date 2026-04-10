@@ -66,6 +66,7 @@ pub struct ThemeColors {
     pub heading: Option<String>,
     pub link: Option<String>,
     pub tag: Option<String>,
+    pub sidebar_selected_bg: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
