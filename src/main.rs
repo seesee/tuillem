@@ -144,6 +144,7 @@ async fn main() -> Result<()> {
         cancel_flag,
     );
     // Pass config values for the settings panel
+    app.config_themes = config.themes.clone();
     app.config_theme = config.theme.clone();
     app.config_keybindings = match config.keybindings {
         tuillem_config::KeybindingPreset::Vim => "vim".to_string(),
@@ -158,22 +159,25 @@ async fn main() -> Result<()> {
     app.layout = config.ui.layout.clone();
     app.date_format = config.ui.date_format.clone();
     app.scroll_lines = config.ui.scroll_lines;
-    app.conversation.advance_lines = config.ui.scroll_lines;
     app.command_prefix = config.ui.command_prefix.clone();
-    app.default_provider = config
-        .defaults
-        .provider
-        .clone()
-        .unwrap_or_else(|| config.providers.first().map(|p| p.name.clone()).unwrap_or_default());
-    app.default_model = config
-        .defaults
-        .model
-        .clone()
-        .unwrap_or_else(|| {
-            config.providers.first()
-                .and_then(|p| p.default_model.clone().or_else(|| p.models.first().cloned()))
-                .unwrap_or_default()
-        });
+    app.default_provider = config.defaults.provider.clone().unwrap_or_else(|| {
+        config
+            .providers
+            .first()
+            .map(|p| p.name.clone())
+            .unwrap_or_default()
+    });
+    app.default_model = config.defaults.model.clone().unwrap_or_else(|| {
+        config
+            .providers
+            .first()
+            .and_then(|p| {
+                p.default_model
+                    .clone()
+                    .or_else(|| p.models.first().cloned())
+            })
+            .unwrap_or_default()
+    });
 
     // 13. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
     std::thread::spawn(move || {

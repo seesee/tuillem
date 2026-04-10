@@ -27,9 +27,24 @@ pub fn run_setup_wizard() -> Result<Config> {
     let (provider_type, provider_name, default_base_url, needs_api_key) = match choice {
         "1" => (ProviderType::Anthropic, "anthropic", None, true),
         "2" => (ProviderType::Openai, "openai", None, true),
-        "3" => (ProviderType::Openrouter, "openrouter", Some("https://openrouter.ai/api/v1"), true),
-        "4" => (ProviderType::Ollama, "ollama", Some("http://localhost:11434"), false),
-        "5" => (ProviderType::Openai, "lmstudio", Some("http://localhost:1234/v1"), false),
+        "3" => (
+            ProviderType::Openrouter,
+            "openrouter",
+            Some("https://openrouter.ai/api/v1"),
+            true,
+        ),
+        "4" => (
+            ProviderType::Ollama,
+            "ollama",
+            Some("http://localhost:11434"),
+            false,
+        ),
+        "5" => (
+            ProviderType::Openai,
+            "lmstudio",
+            Some("http://localhost:1234/v1"),
+            false,
+        ),
         _ => {
             println!("Invalid choice, defaulting to Anthropic.");
             (ProviderType::Anthropic, "anthropic", None, true)
@@ -97,7 +112,8 @@ pub fn run_setup_wizard() -> Result<Config> {
     // ── Step 4: Preferences ─────────────────────────────────────────────
     println!("Step 4/5: Preferences");
 
-    let theme_input = prompt("Theme [dark/light/dracula/nord/gruvbox/tokyo_night/solarized] (default: dark): ")?;
+    let theme_input =
+        prompt("Theme [dark/light/dracula/nord/gruvbox/tokyo_night/solarized] (default: dark): ")?;
     let theme = {
         let t = theme_input.trim().to_string();
         if t.is_empty() { "dark".to_string() } else { t }
@@ -134,7 +150,11 @@ pub fn run_setup_wizard() -> Result<Config> {
         provider_type,
         api_key,
         base_url,
-        default_model: if default_model.is_empty() { None } else { Some(default_model.clone()) },
+        default_model: if default_model.is_empty() {
+            None
+        } else {
+            Some(default_model.clone())
+        },
         models: all_models,
     };
 
@@ -144,7 +164,11 @@ pub fn run_setup_wizard() -> Result<Config> {
         providers: vec![provider_config],
         defaults: DefaultsConfig {
             provider: Some(provider_name.to_string()),
-            model: if default_model.is_empty() { None } else { Some(default_model) },
+            model: if default_model.is_empty() {
+                None
+            } else {
+                Some(default_model)
+            },
             system_prompt: None,
         },
         ui: UiConfig {
@@ -171,7 +195,10 @@ fn prompt(message: &str) -> Result<String> {
     io::stdin()
         .read_line(&mut input)
         .context("failed to read input")?;
-    Ok(input.trim_end_matches('\n').trim_end_matches('\r').to_string())
+    Ok(input
+        .trim_end_matches('\n')
+        .trim_end_matches('\r')
+        .to_string())
 }
 
 fn write_config(path: &PathBuf, config: &Config) -> Result<()> {

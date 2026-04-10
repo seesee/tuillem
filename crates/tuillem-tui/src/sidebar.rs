@@ -4,7 +4,9 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    },
 };
 use tuillem_core::actions::SessionSummary;
 
@@ -36,10 +38,7 @@ impl Sidebar {
 
     /// Filter sessions by search query.
     /// Matches on title, tags (client-side), AND conversation content (via FTS results).
-    pub fn filtered_sessions<'a>(
-        &self,
-        sessions: &'a [SessionSummary],
-    ) -> Vec<&'a SessionSummary> {
+    pub fn filtered_sessions<'a>(&self, sessions: &'a [SessionSummary]) -> Vec<&'a SessionSummary> {
         if self.search_input.is_empty() {
             sessions.iter().collect()
         } else {
@@ -59,6 +58,7 @@ impl Sidebar {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         frame: &mut Frame,
@@ -68,8 +68,8 @@ impl Sidebar {
         theme: &Theme,
         layout: &str,
         date_format: &str,
-        confirm_delete: Option<&str>,    // session_id pending delete
-        renaming: Option<(&str, &str)>,  // (session_id, edit_buffer)
+        confirm_delete: Option<&str>,   // session_id pending delete
+        renaming: Option<(&str, &str)>, // (session_id, edit_buffer)
     ) {
         let border_style = if focused {
             Style::default().fg(theme.accent)
@@ -163,7 +163,7 @@ impl Sidebar {
 
             // Check if this session has a pending action
             let is_confirming_delete = confirm_delete == Some(session.id.as_str());
-            let is_renaming = renaming.map_or(false, |(id, _)| id == session.id);
+            let is_renaming = renaming.is_some_and(|(id, _)| id == session.id);
 
             let (title_line, preview_line) = if is_confirming_delete {
                 // Delete confirmation
@@ -171,7 +171,9 @@ impl Sidebar {
                     Line::from(vec![
                         Span::styled(
                             "Delete? ",
-                            Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+                            Style::default()
+                                .fg(theme.error)
+                                .add_modifier(Modifier::BOLD),
                         ),
                         Span::styled("y/n", Style::default().fg(theme.warning)),
                     ]),
@@ -180,14 +182,15 @@ impl Sidebar {
                         Style::default().fg(theme.thinking_fg),
                     )),
                 )
-            } else if is_renaming {
-                let buf = renaming.unwrap().1;
+            } else if let Some((_, buf)) = renaming.filter(|_| is_renaming) {
                 (
                     Line::from(vec![
                         Span::styled("Rename: ", Style::default().fg(theme.accent)),
                         Span::styled(
                             buf.to_string(),
-                            Style::default().fg(theme.fg).add_modifier(Modifier::UNDERLINED),
+                            Style::default()
+                                .fg(theme.fg)
+                                .add_modifier(Modifier::UNDERLINED),
                         ),
                         Span::styled("_", Style::default().fg(theme.accent)),
                     ]),
@@ -249,8 +252,9 @@ impl Sidebar {
         // Render scrollbar if there are more sessions than visible
         let total_sessions = filtered.len();
         if total_sessions > self.visible_count {
-            let mut scrollbar_state = ScrollbarState::new(total_sessions.saturating_sub(self.visible_count))
-                .position(self.scroll_offset);
+            let mut scrollbar_state =
+                ScrollbarState::new(total_sessions.saturating_sub(self.visible_count))
+                    .position(self.scroll_offset);
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .style(Style::default().fg(theme.thinking_fg));
             frame.render_stateful_widget(scrollbar, list_area, &mut scrollbar_state);
@@ -269,7 +273,11 @@ impl Sidebar {
         if session_count > 0 {
             self.selected = (self.selected + count).min(session_count - 1);
             // Keep selection visible — use visible_count from last render
-            let visible = if self.visible_count > 0 { self.visible_count } else { 10 };
+            let visible = if self.visible_count > 0 {
+                self.visible_count
+            } else {
+                10
+            };
             if self.selected >= self.scroll_offset + visible {
                 self.scroll_offset = self.selected + 1 - visible;
             }

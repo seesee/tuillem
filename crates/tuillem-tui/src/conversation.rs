@@ -31,7 +31,6 @@ pub struct Conversation {
     pub scroll_state: ScrollState,
     pub highlight_line: Option<u16>,
     pub highlight_set_at: Option<std::time::Instant>,
-    pub advance_lines: u16,
     /// Cache of rendered lines per message. Key is (message_id, thinking_expanded).
     /// Invalidated when content_width or layout changes.
     render_cache: HashMap<(String, bool), Vec<Line<'static>>>,
@@ -49,7 +48,6 @@ impl Conversation {
             scroll_state: ScrollState::FollowBottom,
             highlight_line: None,
             highlight_set_at: None,
-            advance_lines: 5,
             render_cache: HashMap::new(),
             cached_width: 0,
             cached_layout: String::new(),
@@ -172,7 +170,10 @@ impl Conversation {
                             .take(40)
                             .collect::<String>();
                         msg_lines.push(Line::from(Span::styled(
-                            format!("{} [thinking] {}... (press t to expand)", margin_str, preview),
+                            format!(
+                                "{} [thinking] {}... (press t to expand)",
+                                margin_str, preview
+                            ),
                             theme.thinking_style(),
                         )));
                     }
@@ -221,8 +222,7 @@ impl Conversation {
                         }
                         // Bottom blank line (bg-colored)
                         msg_lines.push(
-                            Line::from(Span::styled(blank, user_style))
-                                .alignment(Alignment::Right),
+                            Line::from(Span::styled(blank, user_style)).alignment(Alignment::Right),
                         );
                     } else {
                         // Tight mode: original behavior
@@ -408,11 +408,11 @@ impl Conversation {
         self.visible_height = area.height;
 
         // Auto-expire highlight after 2 seconds
-        if let Some(set_at) = self.highlight_set_at {
-            if set_at.elapsed() > std::time::Duration::from_secs(2) {
-                self.highlight_line = None;
-                self.highlight_set_at = None;
-            }
+        if let Some(set_at) = self.highlight_set_at
+            && set_at.elapsed() > std::time::Duration::from_secs(2)
+        {
+            self.highlight_line = None;
+            self.highlight_set_at = None;
         }
 
         // Scroll state machine
@@ -482,8 +482,8 @@ impl Conversation {
         // Scrollbar on the right edge when content exceeds viewport
         if has_scrollbar {
             let max_scroll = self.total_lines.saturating_sub(self.visible_height) as usize;
-            let mut scrollbar_state = ScrollbarState::new(max_scroll)
-                .position(self.scroll_offset as usize);
+            let mut scrollbar_state =
+                ScrollbarState::new(max_scroll).position(self.scroll_offset as usize);
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .track_style(Style::default().fg(theme.border))
                 .thumb_style(Style::default().fg(theme.accent));

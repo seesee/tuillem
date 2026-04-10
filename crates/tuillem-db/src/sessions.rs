@@ -175,18 +175,6 @@ impl Db {
         Ok(results)
     }
 
-    /// Get the last message content for a session (for sidebar preview).
-    pub fn get_session_last_message(&self, id: &str) -> Result<Option<String>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT content FROM messages WHERE session_id = ?1 ORDER BY created_at DESC LIMIT 1",
-        )?;
-        let result = stmt
-            .query_row(rusqlite::params![id], |row| row.get::<_, Option<String>>(0))
-            .ok()
-            .flatten();
-        Ok(result)
-    }
-
     pub fn delete_session(&self, id: &str) -> Result<(), DbError> {
         let rows = self
             .conn

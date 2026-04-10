@@ -82,6 +82,7 @@ pub struct App {
     pub input_history: Vec<String>,
     pub history_index: Option<usize>, // None = not browsing history
     // Settings-related config values (used to populate settings panel)
+    pub config_themes: std::collections::HashMap<String, tuillem_config::ThemeColors>,
     pub config_theme: String,
     pub config_keybindings: String,
     pub config_show_thinking: bool,
@@ -135,6 +136,7 @@ impl App {
             cancel_flag,
             input_history: Vec::new(),
             history_index: None,
+            config_themes: std::collections::HashMap::new(),
             config_theme: "dark".to_string(),
             config_keybindings: "default".to_string(),
             config_show_thinking: false,
@@ -160,10 +162,10 @@ impl App {
 
     pub fn draw(&mut self, frame: &mut Frame) {
         // Auto-expire status messages after 5 seconds
-        if let Some((_, created)) = &self.state.status_message {
-            if created.elapsed() > std::time::Duration::from_secs(5) {
-                self.state.status_message = None;
-            }
+        if let Some((_, created)) = &self.state.status_message
+            && created.elapsed() > std::time::Duration::from_secs(5)
+        {
+            self.state.status_message = None;
         }
 
         let size = frame.area();
@@ -178,9 +180,8 @@ impl App {
 
         // Right panel: conversation | [stats bar] | input
         let input_height: u16 = if self.layout == "tight" { 5 } else { 7 };
-        let show_stats_bar = self.show_stats
-            && !self.state.is_streaming
-            && self.state.last_response_stats.is_some();
+        let show_stats_bar =
+            self.show_stats && !self.state.is_streaming && self.state.last_response_stats.is_some();
 
         let v_constraints = if show_stats_bar {
             vec![
@@ -197,17 +198,19 @@ impl App {
             .split(h_chunks[1]);
 
         if !self.sidebar_collapsed {
-        self.sidebar.render(
-            frame,
-            h_chunks[0],
-            &self.state.sessions,
-            self.focus == Focus::Sidebar,
-            &self.theme,
-            &self.layout,
-            &self.date_format,
-            self.sidebar_confirm_delete.as_deref(),
-            self.sidebar_renaming.as_ref().map(|(id, buf)| (id.as_str(), buf.as_str())),
-        );
+            self.sidebar.render(
+                frame,
+                h_chunks[0],
+                &self.state.sessions,
+                self.focus == Focus::Sidebar,
+                &self.theme,
+                &self.layout,
+                &self.date_format,
+                self.sidebar_confirm_delete.as_deref(),
+                self.sidebar_renaming
+                    .as_ref()
+                    .map(|(id, buf)| (id.as_str(), buf.as_str())),
+            );
         }
 
         self.conversation.render(
@@ -219,7 +222,10 @@ impl App {
             self.state.is_streaming,
             &self.state.current_model,
             self.state.error.as_deref(),
-            self.state.status_message.as_ref().map(|(msg, _)| msg.as_str()),
+            self.state
+                .status_message
+                .as_ref()
+                .map(|(msg, _)| msg.as_str()),
             self.focus == Focus::Conversation,
             &self.theme,
             &self.layout,
@@ -249,7 +255,13 @@ impl App {
                 render_help(frame, size, &self.theme, self.help_scroll);
             }
             Overlay::CommandsHelp => {
-                render_commands_help(frame, size, &self.theme, &self.command_prefix, self.commands_help_scroll);
+                render_commands_help(
+                    frame,
+                    size,
+                    &self.theme,
+                    &self.command_prefix,
+                    self.commands_help_scroll,
+                );
             }
             Overlay::Control(panel) => {
                 panel.render(frame, size, &self.theme);
@@ -293,8 +305,7 @@ impl App {
             let approx = if stats.estimated { "~" } else { "" };
             let stats_text = format!(
                 "{}Tokens: {}>{}  {:.1} tok/s  ~{:.0}% ctx",
-                approx, stats.tokens_in, stats.tokens_out,
-                toks_per_sec, ctx_pct
+                approx, stats.tokens_in, stats.tokens_out, toks_per_sec, ctx_pct
             );
 
             let style = Style::default().fg(self.theme.thinking_fg);
@@ -451,22 +462,34 @@ impl App {
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
                 // On first delta, transition from FollowBottom to Streaming
                 // so the render freeze logic kicks in with correct start_offset
-                if matches!(self.conversation.scroll_state, crate::conversation::ScrollState::FollowBottom) {
-                    let start = self.conversation.total_lines
+                if matches!(
+                    self.conversation.scroll_state,
+                    crate::conversation::ScrollState::FollowBottom
+                ) {
+                    let start = self
+                        .conversation
+                        .total_lines
                         .saturating_sub(self.conversation.visible_height);
-                    self.conversation.scroll_state =
-                        crate::conversation::ScrollState::Streaming { start_offset: start };
+                    self.conversation.scroll_state = crate::conversation::ScrollState::Streaming {
+                        start_offset: start,
+                    };
                 }
             }
             Event::StreamDone { .. } => {
                 // Freeze when done (whether from Streaming or FollowBottom)
-                if !matches!(self.conversation.scroll_state, crate::conversation::ScrollState::Frozen) {
+                if !matches!(
+                    self.conversation.scroll_state,
+                    crate::conversation::ScrollState::Frozen
+                ) {
                     self.conversation.scroll_state = crate::conversation::ScrollState::Frozen;
                 }
             }
             Event::MessagesLoaded { .. } | Event::ResponseError { .. } => {
                 // Only scroll to bottom if not frozen (user is reading)
-                if !matches!(self.conversation.scroll_state, crate::conversation::ScrollState::Frozen) {
+                if !matches!(
+                    self.conversation.scroll_state,
+                    crate::conversation::ScrollState::Frozen
+                ) {
                     self.conversation.scroll_to_bottom();
                 }
             }
@@ -552,7 +575,6 @@ impl App {
             }
         }
 
-
         // Tab / Shift+Tab / BackTab cycle focus
         match key.code {
             KeyCode::Tab => {
@@ -608,39 +630,36 @@ impl App {
     fn handle_overlay_key(&mut self, key: KeyEvent) {
         match &mut self.overlay {
             Overlay::None => {}
-            Overlay::Help => {
-                match key.code {
-                    KeyCode::Esc | KeyCode::Char('q') => {
-                        self.overlay = Overlay::None;
-                    }
-                    KeyCode::Char('h') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.overlay = Overlay::None;
-                    }
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        let max = crate::help::help_max_scroll(self.last_area);
-                        self.help_scroll = self.help_scroll.saturating_add(1).min(max);
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        self.help_scroll = self.help_scroll.saturating_sub(1);
-                    }
-                    _ => {}
+            Overlay::Help => match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.overlay = Overlay::None;
                 }
-            }
-            Overlay::CommandsHelp => {
-                match key.code {
-                    KeyCode::Esc | KeyCode::Char('q') => {
-                        self.overlay = Overlay::None;
-                    }
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        let max = crate::commands::commands_help_max_scroll(self.last_area);
-                        self.commands_help_scroll = self.commands_help_scroll.saturating_add(1).min(max);
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        self.commands_help_scroll = self.commands_help_scroll.saturating_sub(1);
-                    }
-                    _ => {}
+                KeyCode::Char('h') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.overlay = Overlay::None;
                 }
-            }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    let max = crate::help::help_max_scroll(self.last_area);
+                    self.help_scroll = self.help_scroll.saturating_add(1).min(max);
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.help_scroll = self.help_scroll.saturating_sub(1);
+                }
+                _ => {}
+            },
+            Overlay::CommandsHelp => match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.overlay = Overlay::None;
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    let max = crate::commands::commands_help_max_scroll(self.last_area);
+                    self.commands_help_scroll =
+                        self.commands_help_scroll.saturating_add(1).min(max);
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.commands_help_scroll = self.commands_help_scroll.saturating_sub(1);
+                }
+                _ => {}
+            },
             Overlay::Control(panel) => match key.code {
                 KeyCode::Esc => {
                     self.overlay = Overlay::None;
@@ -772,8 +791,10 @@ impl App {
                     if let Ok(mut clipboard) = arboard::Clipboard::new()
                         && clipboard.set_text(&block_text).is_ok()
                     {
-                        self.state.status_message =
-                            Some(("Copied code block to clipboard".to_string(), std::time::Instant::now()));
+                        self.state.status_message = Some((
+                            "Copied code block to clipboard".to_string(),
+                            std::time::Instant::now(),
+                        ));
                     }
                 }
                 _ => {}
@@ -830,13 +851,13 @@ impl App {
                     self.sidebar_renaming = None;
                 }
                 KeyCode::Enter => {
-                    if let Some((sid, buf)) = self.sidebar_renaming.take() {
-                        if !buf.trim().is_empty() {
-                            let _ = self.action_tx.send(Action::RenameSession {
-                                id: sid,
-                                title: buf.trim().to_string(),
-                            });
-                        }
+                    if let Some((sid, buf)) = self.sidebar_renaming.take()
+                        && !buf.trim().is_empty()
+                    {
+                        let _ = self.action_tx.send(Action::RenameSession {
+                            id: sid,
+                            title: buf.trim().to_string(),
+                        });
                     }
                 }
                 KeyCode::Backspace => {
@@ -1008,19 +1029,27 @@ impl App {
                     self.pending_clear = false;
                     let content = self.input.take_content();
                     if content.trim().eq_ignore_ascii_case("y") {
+                        // Delete the current session from DB and create a fresh one
+                        if let Some(ref session_id) = self.state.active_session_id {
+                            let _ = self.action_tx.send(Action::DeleteSession {
+                                id: session_id.clone(),
+                            });
+                        }
+                        let _ = self.action_tx.send(Action::CreateSession {
+                            title: "New Chat".to_string(),
+                        });
                         self.state.messages.clear();
                         self.state.streaming_text.clear();
                         self.state.streaming_thinking.clear();
                         self.conversation.scroll_offset = 0;
+                        self.conversation.clear_render_cache();
                         self.state.status_message = Some((
                             "Conversation cleared".to_string(),
                             std::time::Instant::now(),
                         ));
                     } else {
-                        self.state.status_message = Some((
-                            "Clear cancelled".to_string(),
-                            std::time::Instant::now(),
-                        ));
+                        self.state.status_message =
+                            Some(("Clear cancelled".to_string(), std::time::Instant::now()));
                     }
                 } else {
                     let content = self.input.take_content();
@@ -1044,9 +1073,8 @@ impl App {
                             );
                             if let Err(e) = self.action_tx.send(Action::SendMessage { content }) {
                                 warn!("Failed to send action to coordinator: {e}");
-                                self.state.error = Some(format!(
-                                    "Internal error: coordinator disconnected ({e})"
-                                ));
+                                self.state.error =
+                                    Some(format!("Internal error: coordinator disconnected ({e})"));
                             }
                         }
                     }
@@ -1083,10 +1111,12 @@ impl App {
                 self.input.move_end();
             }
             KeyCode::PageUp => {
-                self.conversation.scroll_up(self.conversation.visible_height.saturating_sub(2));
+                self.conversation
+                    .scroll_up(self.conversation.visible_height.saturating_sub(2));
             }
             KeyCode::PageDown => {
-                self.conversation.scroll_down(self.conversation.visible_height.saturating_sub(2));
+                self.conversation
+                    .scroll_down(self.conversation.visible_height.saturating_sub(2));
             }
             _ => {}
         }
@@ -1173,14 +1203,13 @@ impl App {
                 self.default_model = v;
             }
             // Update available_models if models were added
-            if let Some(models) = panel.get_model_list("defaults.model") {
-                if let Some(entry) = self
+            if let Some(models) = panel.get_model_list("defaults.model")
+                && let Some(entry) = self
                     .available_models
                     .iter_mut()
                     .find(|(name, _)| *name == self.default_provider)
-                {
-                    entry.1 = models;
-                }
+            {
+                entry.1 = models;
             }
             if let Some(v) = panel.get_value("editor") {
                 self.editor_command = v;
@@ -1212,17 +1241,16 @@ impl App {
             if let Some(v) = panel.get_value("ui.date_format") {
                 self.date_format = v;
             }
-            if let Some(v) = panel.get_value("ui.scroll_lines") {
-                if let Ok(lines) = v.parse::<u16>() {
-                    self.scroll_lines = lines.max(1);
-                    self.conversation.advance_lines = self.scroll_lines;
-                }
+            if let Some(v) = panel.get_value("ui.scroll_lines")
+                && let Ok(lines) = v.parse::<u16>()
+            {
+                self.scroll_lines = lines.max(1);
             }
             if let Some(v) = panel.get_value("ui.command_prefix") {
                 self.command_prefix = if v == "(empty)" { String::new() } else { v };
             }
             // Apply theme instantly
-            self.theme = Theme::from_config(&self.config_theme, &std::collections::HashMap::new());
+            self.theme = Theme::from_config(&self.config_theme, &self.config_themes);
 
             // Write to config file
             self.write_config_file();
@@ -1261,7 +1289,11 @@ impl App {
         }
         // Sync model lists from available_models to config providers
         for (provider_name, models) in &self.available_models {
-            if let Some(pc) = config.providers.iter_mut().find(|p| &p.name == provider_name) {
+            if let Some(pc) = config
+                .providers
+                .iter_mut()
+                .find(|p| &p.name == provider_name)
+            {
                 pc.models = models.clone();
             }
         }
@@ -1295,16 +1327,12 @@ impl App {
     }
 
     fn build_command_context(&self) -> CommandContext<'_> {
-        let (total_in, total_out) = self
-            .state
-            .messages
-            .iter()
-            .fold((0u64, 0u64), |(i, o), m| {
-                (
-                    i + m.token_usage_in.unwrap_or(0) as u64,
-                    o + m.token_usage_out.unwrap_or(0) as u64,
-                )
-            });
+        let (total_in, total_out) = self.state.messages.iter().fold((0u64, 0u64), |(i, o), m| {
+            (
+                i + m.token_usage_in.unwrap_or(0) as u64,
+                o + m.token_usage_out.unwrap_or(0) as u64,
+            )
+        });
 
         CommandContext {
             current_provider: &self.state.current_provider,
@@ -1355,8 +1383,7 @@ impl App {
             let is_new_session = matches!(action, Action::CreateSession { .. });
             if let Err(e) = self.action_tx.send(action) {
                 warn!("Failed to send command action: {e}");
-                self.state.error =
-                    Some(format!("Internal error: coordinator disconnected ({e})"));
+                self.state.error = Some(format!("Internal error: coordinator disconnected ({e})"));
                 return;
             }
             if is_new_session && !self.default_provider.is_empty() {
@@ -1372,11 +1399,10 @@ impl App {
         // Show status or error
         if let Some(error) = result.error {
             self.state.error = Some(error);
-        } else if let Some(message) = result.message {
-            if !message.is_empty() {
-                self.state.status_message =
-                    Some((message, std::time::Instant::now()));
-            }
+        } else if let Some(message) = result.message
+            && !message.is_empty()
+        {
+            self.state.status_message = Some((message, std::time::Instant::now()));
         }
     }
 
@@ -1392,7 +1418,10 @@ impl App {
             if let Ok(mut clipboard) = arboard::Clipboard::new()
                 && clipboard.set_text(text).is_ok()
             {
-                self.state.status_message = Some(("Copied response to clipboard".to_string(), std::time::Instant::now()));
+                self.state.status_message = Some((
+                    "Copied response to clipboard".to_string(),
+                    std::time::Instant::now(),
+                ));
             }
         }
     }
@@ -1445,7 +1474,10 @@ impl App {
             if let Ok(mut clipboard) = arboard::Clipboard::new()
                 && clipboard.set_text(&blocks[0]).is_ok()
             {
-                self.state.status_message = Some(("Copied code block to clipboard".to_string(), std::time::Instant::now()));
+                self.state.status_message = Some((
+                    "Copied code block to clipboard".to_string(),
+                    std::time::Instant::now(),
+                ));
             }
             return;
         }
@@ -1574,6 +1606,7 @@ impl App {
     /// Apply a parsed config to the running app (live reload).
     fn apply_config(&mut self, config: &tuillem_config::Config) {
         // Theme
+        self.config_themes = config.themes.clone();
         self.config_theme = config.theme.clone();
         self.theme = Theme::from_config(&config.theme, &config.themes);
 
@@ -1598,20 +1631,24 @@ impl App {
         self.command_prefix = config.ui.command_prefix.clone();
 
         // Defaults
-        self.default_provider = config
-            .defaults
-            .provider
-            .clone()
-            .unwrap_or_else(|| config.providers.first().map(|p| p.name.clone()).unwrap_or_default());
-        self.default_model = config
-            .defaults
-            .model
-            .clone()
-            .unwrap_or_else(|| {
-                config.providers.first()
-                    .and_then(|p| p.default_model.clone().or_else(|| p.models.first().cloned()))
-                    .unwrap_or_default()
-            });
+        self.default_provider = config.defaults.provider.clone().unwrap_or_else(|| {
+            config
+                .providers
+                .first()
+                .map(|p| p.name.clone())
+                .unwrap_or_default()
+        });
+        self.default_model = config.defaults.model.clone().unwrap_or_else(|| {
+            config
+                .providers
+                .first()
+                .and_then(|p| {
+                    p.default_model
+                        .clone()
+                        .or_else(|| p.models.first().cloned())
+                })
+                .unwrap_or_default()
+        });
 
         // System prompt
         self.config_system_prompt = config.defaults.system_prompt.clone().unwrap_or_default();

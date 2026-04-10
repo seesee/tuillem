@@ -554,7 +554,10 @@ providers:
       - claude-sonnet-4-20250514
 "#;
         let config = Config::from_yaml(yaml).unwrap();
-        assert_eq!(config.providers[0].api_key.as_deref(), Some("sk-ant-real-key"));
+        assert_eq!(
+            config.providers[0].api_key.as_deref(),
+            Some("sk-ant-real-key")
+        );
         unsafe { std::env::remove_var("TUILLEM_TEST_API") };
     }
 }

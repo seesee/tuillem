@@ -3,7 +3,9 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
+    widgets::{
+        Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
+    },
 };
 
 use crate::theme::Theme;
@@ -176,8 +178,7 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme, scroll: u16) {
             inner_height,
         );
         let max_scroll = (total_lines as usize).saturating_sub(inner_height as usize);
-        let mut scrollbar_state = ScrollbarState::new(max_scroll)
-            .position(scroll as usize);
+        let mut scrollbar_state = ScrollbarState::new(max_scroll).position(scroll as usize);
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .track_style(Style::default().fg(theme.border))
             .thumb_style(Style::default().fg(theme.accent));

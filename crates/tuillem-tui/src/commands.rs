@@ -178,7 +178,11 @@ fn parse_set_command(args: &str, ctx: &CommandContext) -> CommandResult {
             let matched = provider_models
                 .iter()
                 .find(|m| m.to_lowercase() == query)
-                .or_else(|| provider_models.iter().find(|m| m.to_lowercase().contains(&query)));
+                .or_else(|| {
+                    provider_models
+                        .iter()
+                        .find(|m| m.to_lowercase().contains(&query))
+                });
 
             match matched {
                 Some(model) => CommandResult::action(
@@ -251,10 +255,7 @@ fn parse_set_command(args: &str, ctx: &CommandContext) -> CommandResult {
             if sub_args.is_empty() {
                 return CommandResult::err("Usage: /set system <prompt>");
             }
-            let mut r = CommandResult::ok(format!(
-                "System prompt set ({}chars)",
-                sub_args.len()
-            ));
+            let mut r = CommandResult::ok(format!("System prompt set ({}chars)", sub_args.len()));
             r.set_system_prompt = Some(sub_args.to_string());
             r
         }
@@ -324,7 +325,9 @@ pub fn render_commands_help(
     use ratatui::{
         style::{Modifier, Style},
         text::{Line, Span},
-        widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
+        widgets::{
+            Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
+        },
     };
 
     let popup_width = 64u16.min(area.width.saturating_sub(6));
@@ -438,8 +441,7 @@ pub fn render_commands_help(
             inner_height,
         );
         let max_scroll = (total_lines as usize).saturating_sub(inner_height as usize);
-        let mut scrollbar_state = ScrollbarState::new(max_scroll)
-            .position(scroll as usize);
+        let mut scrollbar_state = ScrollbarState::new(max_scroll).position(scroll as usize);
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .track_style(Style::default().fg(theme.border))
             .thumb_style(Style::default().fg(theme.accent));
@@ -496,14 +498,26 @@ mod tests {
         let ctx = test_ctx();
         let result = parse_command("/new", "/", &ctx).unwrap();
         assert!(result.action.is_some());
-        assert!(result.message.as_ref().unwrap().contains("New conversation"));
+        assert!(
+            result
+                .message
+                .as_ref()
+                .unwrap()
+                .contains("New conversation")
+        );
     }
 
     #[test]
     fn test_model_command() {
         let ctx = test_ctx();
         let result = parse_command("/model", "/", &ctx).unwrap();
-        assert!(result.message.as_ref().unwrap().contains("claude-sonnet-4-20250514"));
+        assert!(
+            result
+                .message
+                .as_ref()
+                .unwrap()
+                .contains("claude-sonnet-4-20250514")
+        );
     }
 
     #[test]

@@ -32,8 +32,8 @@ impl SettingValue {
             SettingValue::Text(s) => {
                 if s.is_empty() {
                     "(empty)".to_string()
-                } else if s.len() > 30 {
-                    format!("{}...", &s[..27])
+                } else if s.chars().count() > 30 {
+                    format!("{}...", s.chars().take(27).collect::<String>())
                 } else {
                     s.clone()
                 }
@@ -48,9 +48,9 @@ impl SettingValue {
             SettingValue::Enum { options, selected } => {
                 options.get(*selected).cloned().unwrap_or_default()
             }
-            SettingValue::ModelSelect { models, selected, .. } => {
-                models.get(*selected).cloned().unwrap_or_default()
-            }
+            SettingValue::ModelSelect {
+                models, selected, ..
+            } => models.get(*selected).cloned().unwrap_or_default(),
             SettingValue::Action(label) => label.clone(),
         }
     }
@@ -329,7 +329,9 @@ impl SettingsPanel {
                         self.refresh_model_list();
                     }
                 }
-                SettingValue::ModelSelect { models, selected, .. } => {
+                SettingValue::ModelSelect {
+                    models, selected, ..
+                } => {
                     if *selected < models.len() {
                         *selected += 1;
                     }
@@ -445,10 +447,10 @@ impl SettingsPanel {
     }
 
     pub fn cancel_edit(&mut self) {
-        if let Some(item) = self.items.get_mut(self.selected) {
-            if let SettingValue::ModelSelect { adding, .. } = &mut item.value {
-                *adding = false;
-            }
+        if let Some(item) = self.items.get_mut(self.selected)
+            && let SettingValue::ModelSelect { adding, .. } = &mut item.value
+        {
+            *adding = false;
         }
         self.editing = false;
         self.edit_buffer.clear();
@@ -511,7 +513,11 @@ impl SettingsPanel {
                 }
             } else {
                 match &item.value {
-                    SettingValue::ModelSelect { models, selected: sel, .. } => {
+                    SettingValue::ModelSelect {
+                        models,
+                        selected: sel,
+                        ..
+                    } => {
                         if *sel >= models.len() {
                             "[+ Add new...] ←→".to_string()
                         } else {
@@ -526,8 +532,16 @@ impl SettingsPanel {
                             format!("{} ({}/{}) ←→", truncated, sel + 1, models.len())
                         }
                     }
-                    SettingValue::Enum { options, selected: sel } => {
-                        format!("{} ({}/{}) ←→", options.get(*sel).cloned().unwrap_or_default(), sel + 1, options.len())
+                    SettingValue::Enum {
+                        options,
+                        selected: sel,
+                    } => {
+                        format!(
+                            "{} ({}/{}) ←→",
+                            options.get(*sel).cloned().unwrap_or_default(),
+                            sel + 1,
+                            options.len()
+                        )
                     }
                     SettingValue::Action(label) => format!("▸ {}", label),
                     _ => item.value.display(),

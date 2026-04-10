@@ -258,7 +258,3 @@ pub fn buffered_sse_stream(
         pending: Vec::new(),
     })
 }
-
-pub fn version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
-}

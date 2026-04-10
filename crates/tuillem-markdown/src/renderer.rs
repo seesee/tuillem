@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 
@@ -5,8 +7,9 @@ use crate::highlight::Highlighter;
 use crate::parser::{InlineElement, MdElement};
 use crate::width;
 
+static HIGHLIGHTER: LazyLock<Highlighter> = LazyLock::new(Highlighter::new);
+
 pub struct MdRenderer {
-    highlighter: Highlighter,
     heading_color: Color,
     link_color: Color,
     code_bg: Color,
@@ -19,7 +22,6 @@ pub struct MdRenderer {
 impl MdRenderer {
     pub fn new() -> Self {
         Self {
-            highlighter: Highlighter::new(),
             heading_color: Color::Rgb(137, 180, 250),
             link_color: Color::Rgb(116, 199, 236),
             code_bg: Color::Rgb(17, 17, 27),
@@ -93,7 +95,7 @@ impl MdRenderer {
                         format!("┌─ {}", lang_display),
                         Style::default().fg(self.border_color),
                     )));
-                    let highlighted = self.highlighter.highlight(code, language);
+                    let highlighted = HIGHLIGHTER.highlight(code, language);
                     for hl_spans in highlighted {
                         let mut line_spans = vec![Span::styled(
                             "│ ".to_string(),

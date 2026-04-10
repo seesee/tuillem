@@ -58,7 +58,10 @@ impl Coordinator {
         info!("Coordinator run() started, waiting for actions...");
         // On startup, load sessions and select the most recent one
         if let Ok(sessions_with_preview) = self.db.list_sessions_with_preview() {
-            debug!("Loaded {} existing sessions from DB", sessions_with_preview.len());
+            debug!(
+                "Loaded {} existing sessions from DB",
+                sessions_with_preview.len()
+            );
             let summaries: Vec<SessionSummary> = sessions_with_preview
                 .iter()
                 .map(|(s, preview)| session_to_summary(s, preview.clone()))
@@ -124,12 +127,16 @@ impl Coordinator {
                 Action::AddTag { session_id, tag } => {
                     if let Err(e) = self.db.add_session_tag(&session_id, &tag) {
                         error!("Failed to add tag: {e}");
+                    } else {
+                        self.send_sessions_loaded(&event_tx);
                     }
                 }
 
                 Action::RemoveTag { session_id, tag } => {
                     if let Err(e) = self.db.remove_session_tag(&session_id, &tag) {
                         error!("Failed to remove tag: {e}");
+                    } else {
+                        self.send_sessions_loaded(&event_tx);
                     }
                 }
 
@@ -394,7 +401,11 @@ impl Coordinator {
         };
 
         // Capture input size before request is moved, for fallback token estimation
-        let request_input_chars: usize = request.messages.iter().map(|m| m.content.len()).sum::<usize>()
+        let request_input_chars: usize = request
+            .messages
+            .iter()
+            .map(|m| m.content.len())
+            .sum::<usize>()
             + request.system.as_ref().map_or(0, |s| s.len());
 
         let mut stream = match provider.send(request).await {
@@ -684,15 +695,18 @@ impl Coordinator {
                     }
                 } else {
                     // Fallback: use truncated first user message as title
-                    debug!("Auto-rename: model returned unusable title '{}', using fallback", title);
+                    debug!(
+                        "Auto-rename: model returned unusable title '{}', using fallback",
+                        title
+                    );
                     let fallback = truncate_for_title(user_content);
-                    if fallback != session.title {
-                        if self.db.update_session_title(session_id, &fallback).is_ok() {
-                            let _ = event_tx.send(Event::SessionRenamed {
-                                id: session_id.to_string(),
-                                title: fallback,
-                            });
-                        }
+                    if fallback != session.title
+                        && self.db.update_session_title(session_id, &fallback).is_ok()
+                    {
+                        let _ = event_tx.send(Event::SessionRenamed {
+                            id: session_id.to_string(),
+                            title: fallback,
+                        });
                     }
                 }
             }
@@ -700,13 +714,13 @@ impl Coordinator {
                 debug!("Auto-rename request failed: {e}");
                 // Fallback on error too
                 let fallback = truncate_for_title(user_content);
-                if fallback != session.title {
-                    if self.db.update_session_title(session_id, &fallback).is_ok() {
-                        let _ = event_tx.send(Event::SessionRenamed {
-                            id: session_id.to_string(),
-                            title: fallback,
-                        });
-                    }
+                if fallback != session.title
+                    && self.db.update_session_title(session_id, &fallback).is_ok()
+                {
+                    let _ = event_tx.send(Event::SessionRenamed {
+                        id: session_id.to_string(),
+                        title: fallback,
+                    });
                 }
             }
         }
