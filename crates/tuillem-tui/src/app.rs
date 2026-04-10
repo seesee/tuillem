@@ -91,6 +91,7 @@ pub struct App {
     pub date_format: String,
     pub reading_wpm: u16,
     pub reading_nudge_lines: u16,
+    pub reading_highlight: bool,
     pub default_provider: String,
     pub default_model: String,
     /// Sidebar interaction state
@@ -134,6 +135,7 @@ impl App {
             date_format: "dd/mm/yyyy".to_string(),
             reading_wpm: 250,
             reading_nudge_lines: 3,
+            reading_highlight: true,
             default_provider: String::new(),
             default_model: String::new(),
             sidebar_confirm_delete: None,
@@ -416,22 +418,48 @@ impl App {
         // Scroll behavior for streaming and message events
         match event {
             Event::StreamStarted => {
-                // Don't auto-scroll during streaming — let user stay where they are
+                // Don't auto-scroll during streaming — let user read at their pace
                 self.conversation.auto_scroll = false;
                 self.conversation.stop_reading();
             }
-            Event::StreamDone { .. } => {
-                // After streaming completes, start reading mode if there's content below viewport
+            Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
+                // During streaming, start reading mode when content overflows viewport
                 let max_offset = self
                     .conversation
                     .total_lines
                     .saturating_sub(self.conversation.visible_height);
                 if self.conversation.scroll_offset < max_offset {
-                    // Content width approximation for WPM calculation
-                    let content_width = self.conversation.visible_height; // will be corrected by area.width in render
-                    self.conversation.start_reading(self.reading_wpm, content_width);
+                    let cw = self.conversation.visible_height; // approximate, corrected by render
+                    self.conversation.maybe_start_reading(
+                        self.reading_wpm, cw,
+                        self.reading_nudge_lines,
+                        self.reading_highlight,
+                    );
+                }
+            }
+            Event::StreamDone { .. } => {
+                // After streaming, update target to final content length
+                if self.conversation.reading_mode.active {
+                    self.conversation.reading_mode.update_target(
+                        self.conversation.total_lines,
+                        self.conversation.visible_height,
+                    );
                 } else {
-                    self.conversation.scroll_to_bottom();
+                    // Start reading if there's content below viewport
+                    let max_offset = self
+                        .conversation
+                        .total_lines
+                        .saturating_sub(self.conversation.visible_height);
+                    if self.conversation.scroll_offset < max_offset {
+                        let cw = self.conversation.visible_height;
+                        self.conversation.start_reading(
+                            self.reading_wpm, cw,
+                            self.reading_nudge_lines,
+                            self.reading_highlight,
+                        );
+                    } else {
+                        self.conversation.scroll_to_bottom();
+                    }
                 }
             }
             Event::MessagesLoaded { .. } | Event::ResponseError { .. } => {
@@ -1065,6 +1093,7 @@ impl App {
             &self.date_format,
             self.reading_wpm,
             self.reading_nudge_lines,
+            self.reading_highlight,
         );
         self.overlay = Overlay::Settings(panel);
     }
@@ -1112,6 +1141,9 @@ impl App {
                     self.reading_nudge_lines = lines;
                 }
             }
+            if let Some(v) = panel.get_value("ui.reading_highlight") {
+                self.reading_highlight = v == "on";
+            }
             // Apply theme instantly
             self.theme = Theme::from_config(&self.config_theme, &std::collections::HashMap::new());
 
@@ -1144,6 +1176,7 @@ impl App {
         config.ui.date_format = self.date_format.clone();
         config.ui.reading_wpm = self.reading_wpm;
         config.ui.reading_nudge_lines = self.reading_nudge_lines;
+        config.ui.reading_highlight = self.reading_highlight;
         if self.config_system_prompt.is_empty() {
             config.defaults.system_prompt = None;
         } else {

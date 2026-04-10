@@ -169,6 +169,8 @@ pub struct UiConfig {
     pub reading_wpm: u16,
     #[serde(default = "default_reading_nudge_lines")]
     pub reading_nudge_lines: u16,
+    #[serde(default = "default_true")]
+    pub reading_highlight: bool,
 }
 
 fn default_reading_wpm() -> u16 {
@@ -195,6 +197,7 @@ impl Default for UiConfig {
             date_format: default_date_format(),
             reading_wpm: default_reading_wpm(),
             reading_nudge_lines: default_reading_nudge_lines(),
+            reading_highlight: true,
         }
     }
 }

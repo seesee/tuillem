@@ -20,18 +20,29 @@ pub struct ReadingMode {
     pub target_offset: u16,
     pub wpm: u16,
     pub content_width: u16,
+    pub scroll_lines: u16,     // how many lines to advance per step
+    pub highlight: bool,       // highlight the estimated reading line
+    pub reading_line: u16,     // estimated line the reader is on (relative to viewport)
 }
 
 impl ReadingMode {
     /// Update WPM and recalculate scroll speed.
     pub fn update_wpm(&mut self, wpm: u16) {
         self.wpm = wpm;
+        self.recalc_speed();
+    }
+
+    /// Update the target offset (for live streaming content growth).
+    pub fn update_target(&mut self, total_lines: u16, visible_height: u16) {
+        self.target_offset = total_lines.saturating_sub(visible_height);
+    }
+
+    fn recalc_speed(&mut self) {
         let words_per_line = (self.content_width as f64) / 5.0;
-        self.lines_per_second = if words_per_line > 0.0 {
-            (wpm as f64) / 60.0 / words_per_line
-        } else {
-            0.5
-        };
+        // Speed = how many scroll_lines-sized steps per second
+        // Each step advances scroll_lines lines worth of reading
+        let lines_per_minute = (self.wpm as f64) / words_per_line.max(1.0);
+        self.lines_per_second = lines_per_minute / 60.0;
     }
 }
 
@@ -45,6 +56,9 @@ impl Default for ReadingMode {
             target_offset: 0,
             wpm: 250,
             content_width: 80,
+            scroll_lines: 3,
+            highlight: true,
+            reading_line: 0,
         }
     }
 }
@@ -71,24 +85,33 @@ impl Conversation {
         }
     }
 
-    pub fn start_reading(&mut self, wpm: u16, content_width: u16) {
-        let words_per_line = (content_width as f64) / 5.0;
-        let lines_per_second = if words_per_line > 0.0 {
-            (wpm as f64) / 60.0 / words_per_line
-        } else {
-            0.5
-        };
+    pub fn start_reading(&mut self, wpm: u16, content_width: u16, scroll_lines: u16, highlight: bool) {
         let target = self.total_lines.saturating_sub(self.visible_height);
         if self.scroll_offset < target {
-            self.reading_mode = ReadingMode {
+            let mut mode = ReadingMode {
                 active: true,
                 paused: false,
                 last_scroll: std::time::Instant::now(),
-                lines_per_second,
+                lines_per_second: 0.0,
                 target_offset: target,
                 wpm,
                 content_width,
+                scroll_lines: scroll_lines.max(1),
+                highlight,
+                reading_line: 0,
             };
+            mode.recalc_speed();
+            self.reading_mode = mode;
+        }
+    }
+
+    /// Try to start reading mode if content overflows viewport (called during streaming).
+    pub fn maybe_start_reading(&mut self, wpm: u16, content_width: u16, scroll_lines: u16, highlight: bool) {
+        if !self.reading_mode.active {
+            self.start_reading(wpm, content_width, scroll_lines, highlight);
+        } else {
+            // Already reading — just update the target as content grows
+            self.reading_mode.update_target(self.total_lines, self.visible_height);
         }
     }
 
@@ -459,16 +482,28 @@ impl Conversation {
         self.total_lines = lines.len() as u16;
         self.visible_height = area.height;
 
-        // Reading mode auto-scroll advancement
+        // Reading mode auto-scroll advancement (in scroll_lines-sized chunks)
         if self.reading_mode.active && !self.reading_mode.paused {
+            let step = self.reading_mode.scroll_lines.max(1) as f64;
+            // Time needed to read scroll_lines lines
+            let secs_per_step = if self.reading_mode.lines_per_second > 0.0 {
+                step / self.reading_mode.lines_per_second
+            } else {
+                5.0
+            };
             let elapsed = self.reading_mode.last_scroll.elapsed().as_secs_f64();
-            let lines_to_advance = elapsed * self.reading_mode.lines_per_second;
-            if lines_to_advance >= 1.0 {
+
+            // Track reading_line within viewport (advances smoothly)
+            let frac = (elapsed / secs_per_step).min(1.0);
+            self.reading_mode.reading_line = (frac * step) as u16;
+
+            if elapsed >= secs_per_step {
                 self.scroll_offset = self
                     .scroll_offset
-                    .saturating_add(lines_to_advance as u16)
+                    .saturating_add(self.reading_mode.scroll_lines)
                     .min(self.reading_mode.target_offset);
                 self.reading_mode.last_scroll = std::time::Instant::now();
+                self.reading_mode.reading_line = 0;
                 if self.scroll_offset >= self.reading_mode.target_offset {
                     self.reading_mode.active = false;
                 }
@@ -505,6 +540,20 @@ impl Conversation {
             lines.push(Line::from(Span::styled(indicator, indicator_style)));
             // Update total_lines to include the indicator
             self.total_lines = lines.len() as u16;
+        }
+
+        // Apply reading highlight to the estimated reading line
+        if self.reading_mode.active && self.reading_mode.highlight && !self.reading_mode.paused {
+            let highlight_line_idx = self.scroll_offset as usize + self.reading_mode.reading_line as usize;
+            if highlight_line_idx < lines.len() {
+                // Apply a subtle background to the reading line
+                let highlight_bg = theme.user_msg_bg; // reuse user msg bg as subtle highlight
+                let line = &mut lines[highlight_line_idx];
+                let new_spans: Vec<Span<'static>> = line.spans.iter().map(|span| {
+                    Span::styled(span.content.to_string(), span.style.bg(highlight_bg))
+                }).collect();
+                *line = Line::from(new_spans);
+            }
         }
 
         let text = Text::from(lines);
