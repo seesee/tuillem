@@ -68,6 +68,8 @@ pub struct SettingsPanel {
     pub edit_buffer: String,
     pub scroll_offset: usize,
     pub dirty: bool,
+    /// All available models by provider, for refreshing model list on provider change
+    available_models: Vec<(String, Vec<String>)>,
 }
 
 impl SettingsPanel {
@@ -248,6 +250,7 @@ impl SettingsPanel {
             edit_buffer: String::new(),
             scroll_offset: 0,
             dirty: false,
+            available_models: available_models.to_vec(),
         }
     }
 
@@ -259,6 +262,38 @@ impl SettingsPanel {
 
     pub fn move_up(&mut self) {
         self.selected = self.selected.saturating_sub(1);
+    }
+
+    /// Refresh the model list to match the current provider selection.
+    fn refresh_model_list(&mut self) {
+        // Find the current provider value
+        let provider = self
+            .items
+            .iter()
+            .find(|i| i.key == "defaults.provider")
+            .map(|i| i.value.display())
+            .unwrap_or_default();
+
+        // Find models for this provider
+        let models = self
+            .available_models
+            .iter()
+            .find(|(name, _)| *name == provider)
+            .map(|(_, m)| m.clone())
+            .unwrap_or_default();
+
+        // Update the model select item
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == "defaults.model") {
+            item.value = if models.is_empty() {
+                SettingValue::Text(String::new())
+            } else {
+                SettingValue::ModelSelect {
+                    models,
+                    selected: 0,
+                    adding: false,
+                }
+            };
+        }
     }
 
     /// Check if the currently selected item is a ModelSelect (for special key handling).
@@ -301,6 +336,12 @@ impl SettingsPanel {
                 SettingValue::Enum { options, selected } => {
                     *selected = (*selected + 1) % options.len();
                     self.dirty = true;
+                    // If provider changed, refresh model list
+                    let is_provider = self.items.get(self.selected)
+                        .is_some_and(|i| i.key == "defaults.provider");
+                    if is_provider {
+                        self.refresh_model_list();
+                    }
                 }
                 SettingValue::Text(s) => {
                     self.edit_buffer = s.clone();
