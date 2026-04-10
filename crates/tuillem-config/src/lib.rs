@@ -168,6 +168,12 @@ pub struct UiConfig {
     pub date_format: String,
     #[serde(default = "default_scroll_lines")]
     pub scroll_lines: u16,
+    #[serde(default = "default_command_prefix")]
+    pub command_prefix: String,
+}
+
+fn default_command_prefix() -> String {
+    "/".to_string()
 }
 
 fn default_scroll_lines() -> u16 {
@@ -189,6 +195,7 @@ impl Default for UiConfig {
             layout: default_layout(),
             date_format: default_date_format(),
             scroll_lines: default_scroll_lines(),
+            command_prefix: default_command_prefix(),
         }
     }
 }

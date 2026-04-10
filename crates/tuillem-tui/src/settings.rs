@@ -91,6 +91,7 @@ impl SettingsPanel {
         layout: &str,
         date_format: &str,
         scroll_lines: u16,
+        command_prefix: &str,
         available_models: &[(String, Vec<String>)],
     ) -> Self {
         // Build model list for current provider
@@ -238,6 +239,11 @@ impl SettingsPanel {
                 label: "Scroll Lines".to_string(),
                 key: "ui.scroll_lines".to_string(),
                 value: SettingValue::Text(scroll_lines.to_string()),
+            },
+            SettingItem {
+                label: "Command Prefix".to_string(),
+                key: "ui.command_prefix".to_string(),
+                value: SettingValue::Text(command_prefix.to_string()),
             },
             SettingItem {
                 label: "System Prompt".to_string(),

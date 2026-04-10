@@ -10,7 +10,7 @@ use crate::theme::Theme;
 
 pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
     let popup_width = 60u16.min(area.width.saturating_sub(6));
-    let popup_height = 34u16.min(area.height.saturating_sub(4));
+    let popup_height = 38u16.min(area.height.saturating_sub(4));
     let x = (area.width.saturating_sub(popup_width)) / 2;
     let y = (area.height.saturating_sub(popup_height)) / 2;
     let popup_area = Rect::new(x, y, popup_width, popup_height);
@@ -134,6 +134,12 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
         Line::from(vec![
             Span::styled("  t         ", normal),
             Span::styled("Toggle thinking block", dim),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled("Slash Commands", accent)),
+        Line::from(vec![
+            Span::styled("  /help     ", normal),
+            Span::styled("See /help for all slash commands", dim),
         ]),
     ];
 

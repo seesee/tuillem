@@ -10,6 +10,7 @@ use tuillem_core::{
 };
 
 use crate::{
+    commands::{self, CommandContext, render_commands_help},
     control::{ControlAction, ControlPanel},
     conversation::Conversation,
     help::render_help,
@@ -53,6 +54,7 @@ pub enum PopupKind {
 pub enum Overlay {
     None,
     Help,
+    CommandsHelp,
     Control(ControlPanel),
     Settings(SettingsPanel),
     Selection(SelectionPopup),
@@ -96,6 +98,10 @@ pub struct App {
     pub sidebar_confirm_delete: Option<String>, // session_id pending delete
     pub sidebar_renaming: Option<(String, String)>, // (session_id, edit_buffer)
     pub sidebar_collapsed: bool,
+    /// Prefix for slash commands (default "/"). Empty string disables commands.
+    pub command_prefix: String,
+    /// Set when /clear is issued; next Enter confirms.
+    pub pending_clear: bool,
 }
 
 impl App {
@@ -138,6 +144,8 @@ impl App {
             sidebar_confirm_delete: None,
             sidebar_renaming: None,
             sidebar_collapsed: false,
+            command_prefix: "/".to_string(),
+            pending_clear: false,
         }
     }
 
@@ -229,6 +237,9 @@ impl App {
             Overlay::None => {}
             Overlay::Help => {
                 render_help(frame, size, &self.theme);
+            }
+            Overlay::CommandsHelp => {
+                render_commands_help(frame, size, &self.theme, &self.command_prefix);
             }
             Overlay::Control(panel) => {
                 panel.render(frame, size, &self.theme);
@@ -586,6 +597,11 @@ impl App {
                     || (key.modifiers.contains(KeyModifiers::CONTROL)
                         && key.code == KeyCode::Char('h'))
                 {
+                    self.overlay = Overlay::None;
+                }
+            }
+            Overlay::CommandsHelp => {
+                if key.code == KeyCode::Esc || key.code == KeyCode::Char('q') {
                     self.overlay = Overlay::None;
                 }
             }
@@ -949,21 +965,50 @@ impl App {
                     // Set highlight on the first line of newly visible content
                     self.conversation.highlight_line = Some(self.conversation.scroll_offset);
                     self.conversation.highlight_set_at = Some(std::time::Instant::now());
+                } else if self.pending_clear {
+                    // Confirm clear
+                    self.pending_clear = false;
+                    let content = self.input.take_content();
+                    if content.trim().eq_ignore_ascii_case("y") {
+                        self.state.messages.clear();
+                        self.state.streaming_text.clear();
+                        self.state.streaming_thinking.clear();
+                        self.conversation.scroll_offset = 0;
+                        self.state.status_message = Some((
+                            "Conversation cleared".to_string(),
+                            std::time::Instant::now(),
+                        ));
+                    } else {
+                        self.state.status_message = Some((
+                            "Clear cancelled".to_string(),
+                            std::time::Instant::now(),
+                        ));
+                    }
                 } else {
                     let content = self.input.take_content();
                     if !content.trim().is_empty() {
-                        self.state.error = None;
-                        self.state.status_message = None;
-                        self.input_history.push(content.clone());
-                        self.history_index = None;
-                        debug!(
-                            "Sending Action::SendMessage, content length={}",
-                            content.len()
-                        );
-                        if let Err(e) = self.action_tx.send(Action::SendMessage { content }) {
-                            warn!("Failed to send action to coordinator: {e}");
-                            self.state.error =
-                                Some(format!("Internal error: coordinator disconnected ({e})"));
+                        // Check for slash command
+                        let ctx = self.build_command_context();
+                        if let Some(result) =
+                            commands::parse_command(&content, &self.command_prefix, &ctx)
+                        {
+                            self.execute_command_result(result);
+                        } else {
+                            // Normal message send
+                            self.state.error = None;
+                            self.state.status_message = None;
+                            self.input_history.push(content.clone());
+                            self.history_index = None;
+                            debug!(
+                                "Sending Action::SendMessage, content length={}",
+                                content.len()
+                            );
+                            if let Err(e) = self.action_tx.send(Action::SendMessage { content }) {
+                                warn!("Failed to send action to coordinator: {e}");
+                                self.state.error = Some(format!(
+                                    "Internal error: coordinator disconnected ({e})"
+                                ));
+                            }
                         }
                     }
                 }
@@ -1067,6 +1112,7 @@ impl App {
             &self.layout,
             &self.date_format,
             self.scroll_lines,
+            &self.command_prefix,
             &self.available_models,
         );
         self.overlay = Overlay::Settings(panel);
@@ -1127,6 +1173,9 @@ impl App {
                     self.conversation.advance_lines = self.scroll_lines;
                 }
             }
+            if let Some(v) = panel.get_value("ui.command_prefix") {
+                self.command_prefix = if v == "(empty)" { String::new() } else { v };
+            }
             // Apply theme instantly
             self.theme = Theme::from_config(&self.config_theme, &std::collections::HashMap::new());
 
@@ -1158,6 +1207,7 @@ impl App {
         config.ui.layout = self.layout.clone();
         config.ui.date_format = self.date_format.clone();
         config.ui.scroll_lines = self.scroll_lines;
+        config.ui.command_prefix = self.command_prefix.clone();
         if !self.default_provider.is_empty() {
             config.defaults.provider = Some(self.default_provider.clone());
         }
@@ -1197,6 +1247,88 @@ impl App {
             });
         }
         self.sidebar.selected = 0;
+    }
+
+    fn build_command_context(&self) -> CommandContext<'_> {
+        let (total_in, total_out) = self
+            .state
+            .messages
+            .iter()
+            .fold((0u64, 0u64), |(i, o), m| {
+                (
+                    i + m.token_usage_in.unwrap_or(0) as u64,
+                    o + m.token_usage_out.unwrap_or(0) as u64,
+                )
+            });
+
+        CommandContext {
+            current_provider: &self.state.current_provider,
+            current_model: &self.state.current_model,
+            active_session_id: self.state.active_session_id.as_deref(),
+            message_count: self.state.messages.len(),
+            total_tokens_in: total_in,
+            total_tokens_out: total_out,
+            available_models: &self.available_models,
+        }
+    }
+
+    fn execute_command_result(&mut self, result: commands::CommandResult) {
+        // Show help overlay
+        if result.show_help {
+            self.overlay = Overlay::CommandsHelp;
+            return;
+        }
+
+        // Apply thinking toggle
+        if let Some(thinking) = result.set_thinking {
+            self.config_show_thinking = thinking;
+        }
+
+        // Apply system prompt
+        if let Some(ref prompt) = result.set_system_prompt {
+            self.config_system_prompt = prompt.clone();
+        }
+
+        // Handle clear confirmation
+        if result.request_clear {
+            self.pending_clear = true;
+            self.state.status_message = Some((
+                "Clear all messages? Type y and press Enter to confirm, anything else to cancel."
+                    .to_string(),
+                std::time::Instant::now(),
+            ));
+            return;
+        }
+
+        // Send action to coordinator
+        if let Some(action) = result.action {
+            // For CreateSession, also reset to default model
+            let is_new_session = matches!(action, Action::CreateSession { .. });
+            if let Err(e) = self.action_tx.send(action) {
+                warn!("Failed to send command action: {e}");
+                self.state.error =
+                    Some(format!("Internal error: coordinator disconnected ({e})"));
+                return;
+            }
+            if is_new_session && !self.default_provider.is_empty() {
+                let _ = self.action_tx.send(Action::SwitchModel {
+                    provider: self.default_provider.clone(),
+                    model: self.default_model.clone(),
+                });
+                self.focus = Focus::Input;
+                self.update_focus_state();
+            }
+        }
+
+        // Show status or error
+        if let Some(error) = result.error {
+            self.state.error = Some(error);
+        } else if let Some(message) = result.message {
+            if !message.is_empty() {
+                self.state.status_message =
+                    Some((message, std::time::Instant::now()));
+            }
+        }
     }
 
     fn copy_last_response(&mut self) {
@@ -1414,6 +1546,7 @@ impl App {
         self.layout = config.ui.layout.clone();
         self.date_format = config.ui.date_format.clone();
         self.scroll_lines = config.ui.scroll_lines;
+        self.command_prefix = config.ui.command_prefix.clone();
 
         // Defaults
         self.default_provider = config

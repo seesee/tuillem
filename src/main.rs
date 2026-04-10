@@ -159,6 +159,7 @@ async fn main() -> Result<()> {
     app.date_format = config.ui.date_format.clone();
     app.scroll_lines = config.ui.scroll_lines;
     app.conversation.advance_lines = config.ui.scroll_lines;
+    app.command_prefix = config.ui.command_prefix.clone();
     app.default_provider = config
         .defaults
         .provider

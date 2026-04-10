@@ -1,4 +1,5 @@
 pub mod app;
+pub mod commands;
 pub mod control;
 pub mod conversation;
 pub mod help;
