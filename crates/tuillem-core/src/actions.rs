@@ -47,6 +47,9 @@ pub enum Event {
     },
     StreamDone {
         message_id: String,
+        tokens_in: u64,
+        tokens_out: u64,
+        latency_ms: u64,
     },
     ResponseError {
         error: String,

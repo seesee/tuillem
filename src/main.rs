@@ -156,6 +156,7 @@ async fn main() -> Result<()> {
     app.config_show_token_usage = config.ui.show_token_usage;
     app.config_mouse = config.ui.mouse;
     app.config_system_prompt = config.defaults.system_prompt.clone().unwrap_or_default();
+    app.show_stats = config.ui.show_stats;
 
     // 13. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
     std::thread::spawn(move || {

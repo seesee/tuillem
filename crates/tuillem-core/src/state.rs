@@ -6,6 +6,14 @@ pub struct PendingToolCall {
     pub input: serde_json::Value,
 }
 
+#[derive(Debug, Clone)]
+pub struct ResponseStats {
+    pub tokens_in: u64,
+    pub tokens_out: u64,
+    pub latency_ms: u64,
+    pub model: String,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AppState {
     pub sessions: Vec<SessionSummary>,
@@ -22,6 +30,7 @@ pub struct AppState {
     pub error: Option<String>,
     /// Transient status message (e.g. "Copied to clipboard"). Cleared on next action.
     pub status_message: Option<String>,
+    pub last_response_stats: Option<ResponseStats>,
 }
 
 impl AppState {
@@ -78,6 +87,7 @@ impl AppState {
                 self.streaming_thinking.clear();
                 self.is_streaming = true;
                 self.error = None;
+                self.last_response_stats = None;
             }
             Event::StreamDelta { text } => {
                 self.streaming_text.push_str(text);
@@ -87,10 +97,23 @@ impl AppState {
                 self.streaming_thinking.push_str(text);
                 self.is_streaming = true;
             }
-            Event::StreamDone { .. } => {
+            Event::StreamDone {
+                tokens_in,
+                tokens_out,
+                latency_ms,
+                ..
+            } => {
                 self.streaming_text.clear();
                 self.streaming_thinking.clear();
                 self.is_streaming = false;
+                if *tokens_in > 0 || *tokens_out > 0 {
+                    self.last_response_stats = Some(ResponseStats {
+                        tokens_in: *tokens_in,
+                        tokens_out: *tokens_out,
+                        latency_ms: *latency_ms,
+                        model: self.current_model.clone(),
+                    });
+                }
             }
             Event::ResponseError { error } => {
                 self.streaming_text.clear();
@@ -195,6 +218,9 @@ mod tests {
 
         state.apply_event(&Event::StreamDone {
             message_id: "m1".into(),
+            tokens_in: 100,
+            tokens_out: 50,
+            latency_ms: 2000,
         });
         assert!(state.streaming_text.is_empty());
         assert!(state.streaming_thinking.is_empty());

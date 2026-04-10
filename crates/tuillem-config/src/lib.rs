@@ -159,6 +159,8 @@ pub struct UiConfig {
     pub show_token_usage: bool,
     #[serde(default = "default_true")]
     pub mouse: bool,
+    #[serde(default)]
+    pub show_stats: bool,
 }
 
 impl Default for UiConfig {
@@ -168,6 +170,7 @@ impl Default for UiConfig {
             show_thinking: false,
             show_token_usage: true,
             mouse: true,
+            show_stats: false,
         }
     }
 }

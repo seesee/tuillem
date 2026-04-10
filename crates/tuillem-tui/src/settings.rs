@@ -73,6 +73,7 @@ impl SettingsPanel {
         show_token_usage: bool,
         mouse_enabled: bool,
         system_prompt: &str,
+        show_stats: bool,
     ) -> Self {
         let items = vec![
             SettingItem {
@@ -128,6 +129,11 @@ impl SettingsPanel {
                 label: "Mouse Enabled".to_string(),
                 key: "ui.mouse".to_string(),
                 value: SettingValue::Bool(mouse_enabled),
+            },
+            SettingItem {
+                label: "Stats for Nerds".to_string(),
+                key: "ui.show_stats".to_string(),
+                value: SettingValue::Bool(show_stats),
             },
             SettingItem {
                 label: "System Prompt".to_string(),

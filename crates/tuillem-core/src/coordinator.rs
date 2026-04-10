@@ -471,6 +471,9 @@ impl Coordinator {
             }
             let _ = event_tx.send(Event::StreamDone {
                 message_id: String::new(),
+                tokens_in: input_tokens,
+                tokens_out: output_tokens,
+                latency_ms: start.elapsed().as_millis() as u64,
             });
             if full_text.is_empty() {
                 self.send_messages_loaded(session_id, event_tx);
@@ -523,6 +526,9 @@ impl Coordinator {
 
                 let _ = event_tx.send(Event::StreamDone {
                     message_id: msg.id.clone(),
+                    tokens_in: input_tokens,
+                    tokens_out: output_tokens,
+                    latency_ms: start.elapsed().as_millis() as u64,
                 });
                 self.send_messages_loaded(session_id, event_tx);
                 Some(msg.id)

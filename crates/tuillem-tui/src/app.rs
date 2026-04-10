@@ -86,6 +86,7 @@ pub struct App {
     pub config_show_token_usage: bool,
     pub config_mouse: bool,
     pub config_system_prompt: String,
+    pub show_stats: bool,
 }
 
 impl App {
@@ -119,6 +120,7 @@ impl App {
             config_show_token_usage: true,
             config_mouse: true,
             config_system_prompt: String::new(),
+            show_stats: false,
         }
     }
 
@@ -131,10 +133,23 @@ impl App {
             .constraints([Constraint::Length(30), Constraint::Min(1)])
             .split(size);
 
-        // Right panel: conversation | input (5 lines)
+        // Right panel: conversation | [stats bar] | input (5 lines)
+        let show_stats_bar = self.show_stats
+            && !self.state.is_streaming
+            && self.state.last_response_stats.is_some();
+
+        let v_constraints = if show_stats_bar {
+            vec![
+                Constraint::Min(1),
+                Constraint::Length(1),
+                Constraint::Length(5),
+            ]
+        } else {
+            vec![Constraint::Min(1), Constraint::Length(5)]
+        };
         let v_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(1), Constraint::Length(5)])
+            .constraints(v_constraints)
             .split(h_chunks[1]);
 
         self.sidebar.render(
@@ -159,9 +174,18 @@ impl App {
             &self.theme,
         );
 
+        if show_stats_bar {
+            self.render_stats_bar(frame, v_chunks[1]);
+        }
+
+        let input_chunk = if show_stats_bar {
+            v_chunks[2]
+        } else {
+            v_chunks[1]
+        };
         self.input.render(
             frame,
-            v_chunks[1],
+            input_chunk,
             &self.state.current_model,
             self.state.is_streaming,
             &self.theme,
@@ -187,6 +211,45 @@ impl App {
             } => {
                 self.draw_code_block_popup(frame, size, items, *selected);
             }
+        }
+    }
+
+    fn render_stats_bar(&self, frame: &mut Frame, area: Rect) {
+        if let Some(ref stats) = self.state.last_response_stats {
+            let toks_per_sec = if stats.latency_ms > 0 {
+                stats.tokens_out as f64 / (stats.latency_ms as f64 / 1000.0)
+            } else {
+                0.0
+            };
+
+            // Estimate context usage based on common context windows
+            let context_window: u64 = match stats.model.as_str() {
+                m if m.contains("gpt-4o") => 128_000,
+                m if m.contains("gpt-4-turbo") => 128_000,
+                m if m.contains("gpt-4") => 8_192,
+                m if m.contains("gpt-3.5") => 16_385,
+                m if m.contains("claude-3-haiku") => 200_000,
+                m if m.contains("claude") => 200_000,
+                m if m.contains("llama") => 8_192,
+                _ => 200_000,
+            };
+            let total_tokens = stats.tokens_in + stats.tokens_out;
+            let ctx_pct = (total_tokens as f64 / context_window as f64) * 100.0;
+
+            let stats_text = format!(
+                "Tokens: {}>{} | {:.1} tok/s | ~{:.0}% ctx",
+                stats.tokens_in, stats.tokens_out, toks_per_sec, ctx_pct
+            );
+
+            let style = Style::default().fg(self.theme.thinking_fg);
+            // Right-align the text within the area
+            let padding = (area.width as usize).saturating_sub(stats_text.len());
+            let line = Line::from(Span::styled(
+                format!("{:>width$}", stats_text, width = padding + stats_text.len()),
+                style,
+            ));
+            let paragraph = ratatui::widgets::Paragraph::new(line);
+            frame.render_widget(paragraph, area);
         }
     }
 
@@ -848,6 +911,7 @@ impl App {
             self.config_show_token_usage,
             self.config_mouse,
             &self.config_system_prompt,
+            self.show_stats,
         );
         self.overlay = Overlay::Settings(panel);
     }
@@ -872,6 +936,9 @@ impl App {
             }
             if let Some(v) = panel.get_value("ui.mouse") {
                 self.config_mouse = v == "on";
+            }
+            if let Some(v) = panel.get_value("ui.show_stats") {
+                self.show_stats = v == "on";
             }
             if let Some(v) = panel.get_value("defaults.system_prompt") {
                 self.config_system_prompt = if v == "(empty)" { String::new() } else { v };
@@ -900,6 +967,7 @@ impl App {
         config.ui.show_thinking = self.config_show_thinking;
         config.ui.show_token_usage = self.config_show_token_usage;
         config.ui.mouse = self.config_mouse;
+        config.ui.show_stats = self.show_stats;
         if self.config_system_prompt.is_empty() {
             config.defaults.system_prompt = None;
         } else {
