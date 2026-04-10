@@ -106,8 +106,12 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
             Span::styled("Search sessions", dim),
         ]),
         Line::from(vec![
-            Span::styled("  Ctrl+D    ", normal),
-            Span::styled("Delete session", dim),
+            Span::styled("  d         ", normal),
+            Span::styled("Delete session (y/n confirm)", dim),
+        ]),
+        Line::from(vec![
+            Span::styled("  r         ", normal),
+            Span::styled("Rename session", dim),
         ]),
         Line::from(""),
         Line::from(Span::styled("Conversation", accent)),

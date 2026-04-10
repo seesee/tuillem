@@ -161,6 +161,20 @@ async fn main() -> Result<()> {
     app.date_format = config.ui.date_format.clone();
     app.reading_wpm = config.ui.reading_wpm;
     app.reading_nudge_lines = config.ui.reading_nudge_lines;
+    app.default_provider = config
+        .defaults
+        .provider
+        .clone()
+        .unwrap_or_else(|| config.providers.first().map(|p| p.name.clone()).unwrap_or_default());
+    app.default_model = config
+        .defaults
+        .model
+        .clone()
+        .unwrap_or_else(|| {
+            config.providers.first()
+                .and_then(|p| p.default_model.clone().or_else(|| p.models.first().cloned()))
+                .unwrap_or_default()
+        });
 
     // 13. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
     std::thread::spawn(move || {

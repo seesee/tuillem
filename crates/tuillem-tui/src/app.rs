@@ -91,6 +91,11 @@ pub struct App {
     pub date_format: String,
     pub reading_wpm: u16,
     pub reading_nudge_lines: u16,
+    pub default_provider: String,
+    pub default_model: String,
+    /// Sidebar interaction state
+    pub sidebar_confirm_delete: Option<String>, // session_id pending delete
+    pub sidebar_renaming: Option<(String, String)>, // (session_id, edit_buffer)
 }
 
 impl App {
@@ -129,6 +134,10 @@ impl App {
             date_format: "dd/mm/yyyy".to_string(),
             reading_wpm: 250,
             reading_nudge_lines: 3,
+            default_provider: String::new(),
+            default_model: String::new(),
+            sidebar_confirm_delete: None,
+            sidebar_renaming: None,
         }
     }
 
@@ -176,6 +185,8 @@ impl App {
             &self.theme,
             &self.layout,
             &self.date_format,
+            self.sidebar_confirm_delete.as_deref(),
+            self.sidebar_renaming.as_ref().map(|(id, buf)| (id.as_str(), buf.as_str())),
         );
 
         self.conversation.render(
@@ -449,6 +460,13 @@ impl App {
                     let _ = self.action_tx.send(Action::CreateSession {
                         title: "New Chat".to_string(),
                     });
+                    // Reset to default model/provider
+                    if !self.default_provider.is_empty() {
+                        let _ = self.action_tx.send(Action::SwitchModel {
+                            provider: self.default_provider.clone(),
+                            model: self.default_model.clone(),
+                        });
+                    }
                     self.focus = Focus::Input;
                     self.update_focus_state();
                     return;
@@ -737,6 +755,12 @@ impl App {
                 let _ = self.action_tx.send(Action::CreateSession {
                     title: "New Chat".to_string(),
                 });
+                if !self.default_provider.is_empty() {
+                    let _ = self.action_tx.send(Action::SwitchModel {
+                        provider: self.default_provider.clone(),
+                        model: self.default_model.clone(),
+                    });
+                }
                 self.focus = Focus::Input;
                 self.update_focus_state();
             }
@@ -761,6 +785,54 @@ impl App {
     }
 
     fn handle_sidebar_key(&mut self, key: KeyEvent) {
+        // Handle rename mode (inline text editing)
+        if self.sidebar_renaming.is_some() {
+            match key.code {
+                KeyCode::Esc => {
+                    self.sidebar_renaming = None;
+                }
+                KeyCode::Enter => {
+                    if let Some((sid, buf)) = self.sidebar_renaming.take() {
+                        if !buf.trim().is_empty() {
+                            let _ = self.action_tx.send(Action::RenameSession {
+                                id: sid,
+                                title: buf.trim().to_string(),
+                            });
+                        }
+                    }
+                }
+                KeyCode::Backspace => {
+                    if let Some((_, ref mut buf)) = self.sidebar_renaming {
+                        buf.pop();
+                    }
+                }
+                KeyCode::Char(c) => {
+                    if let Some((_, ref mut buf)) = self.sidebar_renaming {
+                        buf.push(c);
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        // Handle delete confirmation
+        if let Some(ref session_id) = self.sidebar_confirm_delete {
+            match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    let sid = session_id.clone();
+                    self.sidebar_confirm_delete = None;
+                    let _ = self.action_tx.send(Action::DeleteSession { id: sid });
+                }
+                _ => {
+                    // Any other key cancels
+                    self.sidebar_confirm_delete = None;
+                }
+            }
+            return;
+        }
+
+        // Search mode
         if self.sidebar.search_focused {
             match key.code {
                 KeyCode::Esc => {
@@ -810,12 +882,18 @@ impl App {
                     });
                 }
             }
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('d') => {
+                // Start delete confirmation
                 let filtered = self.sidebar.filtered_sessions(&self.state.sessions);
                 if let Some(session) = filtered.get(self.sidebar.selected) {
-                    let _ = self.action_tx.send(Action::DeleteSession {
-                        id: session.id.clone(),
-                    });
+                    self.sidebar_confirm_delete = Some(session.id.clone());
+                }
+            }
+            KeyCode::Char('r') => {
+                // Start rename
+                let filtered = self.sidebar.filtered_sessions(&self.state.sessions);
+                if let Some(session) = filtered.get(self.sidebar.selected) {
+                    self.sidebar_renaming = Some((session.id.clone(), session.title.clone()));
                 }
             }
             KeyCode::Char('/') => {

@@ -65,6 +65,8 @@ impl Sidebar {
         theme: &Theme,
         layout: &str,
         date_format: &str,
+        confirm_delete: Option<&str>,    // session_id pending delete
+        renaming: Option<(&str, &str)>,  // (session_id, edit_buffer)
     ) {
         let border_style = if focused {
             Style::default().fg(theme.accent)
@@ -156,26 +158,66 @@ impl Sidebar {
                 theme.sidebar_style()
             };
 
-            let mut title_spans: Vec<Span> = vec![Span::styled(&session.title, style)];
-            for tag in &session.tags {
-                title_spans.push(Span::raw(" "));
-                title_spans.push(Span::styled(
-                    format!("[{}]", tag),
-                    Style::default().fg(theme.tag),
-                ));
-            }
+            // Check if this session has a pending action
+            let is_confirming_delete = confirm_delete == Some(session.id.as_str());
+            let is_renaming = renaming.map_or(false, |(id, _)| id == session.id);
 
-            let preview_text = session.preview.as_deref().unwrap_or("").replace('\n', " ");
-            let max_w = inner.width.saturating_sub(4) as usize;
-            let preview_truncated =
-                tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
+            let (title_line, preview_line) = if is_confirming_delete {
+                // Delete confirmation
+                (
+                    Line::from(vec![
+                        Span::styled(
+                            "Delete? ",
+                            Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled("y/n", Style::default().fg(theme.warning)),
+                    ]),
+                    Line::from(Span::styled(
+                        format!(" {}", session.title),
+                        Style::default().fg(theme.thinking_fg),
+                    )),
+                )
+            } else if is_renaming {
+                let buf = renaming.unwrap().1;
+                (
+                    Line::from(vec![
+                        Span::styled("Rename: ", Style::default().fg(theme.accent)),
+                        Span::styled(
+                            buf.to_string(),
+                            Style::default().fg(theme.fg).add_modifier(Modifier::UNDERLINED),
+                        ),
+                        Span::styled("_", Style::default().fg(theme.accent)),
+                    ]),
+                    Line::from(Span::styled(
+                        " Enter:save  Esc:cancel",
+                        Style::default().fg(theme.thinking_fg),
+                    )),
+                )
+            } else {
+                let mut title_spans: Vec<Span> = vec![Span::styled(&session.title, style)];
+                for tag in &session.tags {
+                    title_spans.push(Span::raw(" "));
+                    title_spans.push(Span::styled(
+                        format!("[{}]", tag),
+                        Style::default().fg(theme.tag),
+                    ));
+                }
 
-            let preview_line = Line::from(Span::styled(
-                format!(" {}", preview_truncated),
-                Style::default().fg(theme.thinking_fg),
-            ));
+                let preview_text = session.preview.as_deref().unwrap_or("").replace('\n', " ");
+                let max_w = inner.width.saturating_sub(4) as usize;
+                let preview_truncated =
+                    tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
 
-            let mut item_lines = vec![Line::from(title_spans), preview_line];
+                (
+                    Line::from(title_spans),
+                    Line::from(Span::styled(
+                        format!(" {}", preview_truncated),
+                        Style::default().fg(theme.thinking_fg),
+                    )),
+                )
+            };
+
+            let mut item_lines = vec![title_line, preview_line];
             if is_loose {
                 item_lines.push(Line::from(""));
             }
