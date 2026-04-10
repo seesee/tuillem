@@ -88,6 +88,7 @@ pub struct App {
     pub config_system_prompt: String,
     pub show_stats: bool,
     pub layout: String,
+    pub date_format: String,
 }
 
 impl App {
@@ -123,6 +124,7 @@ impl App {
             config_system_prompt: String::new(),
             show_stats: false,
             layout: "loose".to_string(),
+            date_format: "dd/mm/yyyy".to_string(),
         }
     }
 
@@ -169,6 +171,7 @@ impl App {
             self.focus == Focus::Sidebar,
             &self.theme,
             &self.layout,
+            &self.date_format,
         );
 
         self.conversation.render(
@@ -922,6 +925,7 @@ impl App {
             &self.config_system_prompt,
             self.show_stats,
             &self.layout,
+            &self.date_format,
         );
         self.overlay = Overlay::Settings(panel);
     }
@@ -956,6 +960,9 @@ impl App {
             if let Some(v) = panel.get_value("ui.layout") {
                 self.layout = v;
             }
+            if let Some(v) = panel.get_value("ui.date_format") {
+                self.date_format = v;
+            }
             // Write to config file
             self.write_config_file();
         }
@@ -982,6 +989,7 @@ impl App {
         config.ui.mouse = self.config_mouse;
         config.ui.show_stats = self.show_stats;
         config.ui.layout = self.layout.clone();
+        config.ui.date_format = self.date_format.clone();
         if self.config_system_prompt.is_empty() {
             config.defaults.system_prompt = None;
         } else {

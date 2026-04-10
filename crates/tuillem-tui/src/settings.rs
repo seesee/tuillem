@@ -75,6 +75,7 @@ impl SettingsPanel {
         system_prompt: &str,
         show_stats: bool,
         layout: &str,
+        date_format: &str,
     ) -> Self {
         let items = vec![
             SettingItem {
@@ -142,6 +143,24 @@ impl SettingsPanel {
                 value: SettingValue::Enum {
                     options: vec!["loose".to_string(), "tight".to_string()],
                     selected: if layout == "tight" { 1 } else { 0 },
+                },
+            },
+            SettingItem {
+                label: "Date Format".to_string(),
+                key: "ui.date_format".to_string(),
+                value: SettingValue::Enum {
+                    options: vec![
+                        "dd/mm/yyyy".to_string(),
+                        "mm/dd/yyyy".to_string(),
+                        "yyyy-mm-dd".to_string(),
+                        "dd.mm.yyyy".to_string(),
+                    ],
+                    selected: match date_format {
+                        "mm/dd/yyyy" => 1,
+                        "yyyy-mm-dd" => 2,
+                        "dd.mm.yyyy" => 3,
+                        _ => 0,
+                    },
                 },
             },
             SettingItem {

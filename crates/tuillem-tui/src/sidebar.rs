@@ -64,6 +64,7 @@ impl Sidebar {
         focused: bool,
         theme: &Theme,
         layout: &str,
+        date_format: &str,
     ) {
         let border_style = if focused {
             Style::default().fg(theme.accent)
@@ -129,14 +130,13 @@ impl Sidebar {
         // Build list items with date group headers
         let mut items: Vec<ListItem> = Vec::new();
         let mut current_group: Option<String> = None;
-        let mut item_index = 0; // tracks which filtered session index we're on
+        let mut item_index = 0;
         let header_style = Style::default()
-            .fg(theme.thinking_fg)
-            .add_modifier(Modifier::BOLD);
+            .fg(theme.accent)
+            .add_modifier(Modifier::ITALIC);
 
         for session in filtered.iter().skip(self.scroll_offset) {
-            // Date grouping
-            let group = date_group_label(&session.updated_at, today);
+            let group = date_group_label(&session.updated_at, today, date_format);
             if current_group.as_ref() != Some(&group) {
                 // Add group header
                 if current_group.is_some() && is_loose {
@@ -217,11 +217,11 @@ impl Default for Sidebar {
 }
 
 /// Determine the date group label for a session based on its updated_at timestamp.
-fn date_group_label(updated_at: &str, today: NaiveDate) -> String {
+/// Recent dates use friendly labels; older dates use the configured format.
+fn date_group_label(updated_at: &str, today: NaiveDate, date_format: &str) -> String {
     let date = DateTime::parse_from_rfc3339(updated_at)
         .map(|dt| dt.with_timezone(&Local).date_naive())
         .or_else(|_| {
-            // Try parsing as just a date
             updated_at
                 .parse::<DateTime<Utc>>()
                 .map(|dt| dt.with_timezone(&Local).date_naive())
@@ -236,6 +236,16 @@ fn date_group_label(updated_at: &str, today: NaiveDate) -> String {
         2..=6 => date.format("%A").to_string(), // e.g. "Monday"
         7..=13 => "Last Week".to_string(),
         14..=29 => "This Month".to_string(),
-        _ => date.format("%B %Y").to_string(), // e.g. "March 2026"
+        _ => {
+            // Use configured date format for older entries
+            let chrono_fmt = match date_format {
+                "yyyy-mm-dd" => "%Y-%m-%d",
+                "mm/dd/yyyy" => "%m/%d/%Y",
+                "dd.mm.yyyy" => "%d.%m.%Y",
+                "dd/mm/yyyy" => "%d/%m/%Y",
+                _ => "%d/%m/%Y",
+            };
+            date.format(chrono_fmt).to_string()
+        }
     }
 }

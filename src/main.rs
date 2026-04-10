@@ -158,6 +158,7 @@ async fn main() -> Result<()> {
     app.config_system_prompt = config.defaults.system_prompt.clone().unwrap_or_default();
     app.show_stats = config.ui.show_stats;
     app.layout = config.ui.layout.clone();
+    app.date_format = config.ui.date_format.clone();
 
     // 13. Spawn coordinator on a dedicated thread (rusqlite::Connection is !Sync)
     std::thread::spawn(move || {

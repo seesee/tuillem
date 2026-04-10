@@ -163,6 +163,12 @@ pub struct UiConfig {
     pub show_stats: bool,
     #[serde(default = "default_layout")]
     pub layout: String,
+    #[serde(default = "default_date_format")]
+    pub date_format: String,
+}
+
+fn default_date_format() -> String {
+    "dd/mm/yyyy".to_string()
 }
 
 impl Default for UiConfig {
@@ -174,6 +180,7 @@ impl Default for UiConfig {
             mouse: true,
             show_stats: false,
             layout: default_layout(),
+            date_format: default_date_format(),
         }
     }
 }
