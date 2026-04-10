@@ -1,3 +1,5 @@
+mod setup;
+
 use anyhow::Result;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -35,14 +37,10 @@ async fn main() -> Result<()> {
         tuillem_config::Config::from_file(&config_path)?
     } else {
         info!(
-            "No config found at {}. Using defaults.",
+            "No config found at {}. Running setup wizard.",
             config_path.display()
         );
-        eprintln!(
-            "No config found at {}. Using defaults.",
-            config_path.display()
-        );
-        tuillem_config::Config::from_yaml("{}")?
+        setup::run_setup_wizard()?
     };
     debug!(
         "Config loaded: {} providers, default provider={:?}, default model={:?}",
