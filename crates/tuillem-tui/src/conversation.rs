@@ -75,7 +75,8 @@ impl Conversation {
         let is_loose = layout == "loose";
         let margin: usize = if is_loose { 2 } else { 0 };
         let margin_str: &str = if is_loose { "  " } else { "" };
-        let content_width = area.width.saturating_sub(2).saturating_sub(margin as u16) as usize;
+        // Reserve: 2 margin + 2 scrollbar padding + layout margin
+        let content_width = area.width.saturating_sub(4).saturating_sub(margin as u16) as usize;
         let mut lines: Vec<Line<'static>> = Vec::new();
 
         // Model indicator at top with focus hint
