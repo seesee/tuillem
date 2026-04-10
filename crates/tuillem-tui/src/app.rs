@@ -418,7 +418,12 @@ impl App {
         // Scroll behavior for streaming and message events
         match event {
             Event::StreamStarted => {
-                // Don't auto-scroll during streaming — let user read at their pace
+                // Jump to bottom to show the user's message, then stop auto-scroll
+                // so reading mode takes over as the response streams in
+                self.conversation.scroll_offset = self
+                    .conversation
+                    .total_lines
+                    .saturating_sub(self.conversation.visible_height);
                 self.conversation.auto_scroll = false;
                 self.conversation.stop_reading();
             }
