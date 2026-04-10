@@ -437,9 +437,9 @@ pub fn render_commands_help(
             popup_area.width.saturating_sub(2),
             inner_height,
         );
-        let mut scrollbar_state = ScrollbarState::new(total_lines as usize)
-            .position(scroll as usize)
-            .viewport_content_length(inner_height as usize);
+        let max_scroll = (total_lines as usize).saturating_sub(inner_height as usize);
+        let mut scrollbar_state = ScrollbarState::new(max_scroll)
+            .position(scroll as usize);
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .track_style(Style::default().fg(theme.border))
             .thumb_style(Style::default().fg(theme.accent));

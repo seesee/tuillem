@@ -471,9 +471,9 @@ impl Conversation {
 
         // Scrollbar on the right edge when content exceeds viewport
         if self.total_lines > self.visible_height {
-            let mut scrollbar_state = ScrollbarState::new(self.total_lines as usize)
-                .position(self.scroll_offset as usize)
-                .viewport_content_length(self.visible_height as usize);
+            let max_scroll = self.total_lines.saturating_sub(self.visible_height) as usize;
+            let mut scrollbar_state = ScrollbarState::new(max_scroll)
+                .position(self.scroll_offset as usize);
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .track_style(Style::default().fg(theme.border))
                 .thumb_style(Style::default().fg(theme.accent));
