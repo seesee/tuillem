@@ -223,7 +223,7 @@ impl Sidebar {
             }
 
             items.push(ListItem::new(item_lines).style(if is_selected {
-                Style::default().bg(theme.sidebar_bg)
+                Style::default().bg(theme.user_msg_bg)
             } else {
                 Style::default()
             }));

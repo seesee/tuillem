@@ -69,6 +69,10 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
             Span::styled("  Ctrl+H    ", normal),
             Span::styled("This help screen", dim),
         ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+L    ", normal),
+            Span::styled("Toggle sidebar", dim),
+        ]),
         Line::from(""),
         Line::from(Span::styled("Input", accent)),
         Line::from(vec![

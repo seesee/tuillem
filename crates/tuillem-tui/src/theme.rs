@@ -362,7 +362,7 @@ impl Theme {
     pub fn sidebar_selected_style(&self) -> Style {
         Style::default()
             .fg(self.sidebar_selected)
-            .bg(self.sidebar_bg)
+            .bg(self.user_msg_bg)
     }
 
     pub fn user_message_style(&self) -> Style {

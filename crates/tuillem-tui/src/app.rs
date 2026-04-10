@@ -95,6 +95,7 @@ pub struct App {
     /// Sidebar interaction state
     pub sidebar_confirm_delete: Option<String>, // session_id pending delete
     pub sidebar_renaming: Option<(String, String)>, // (session_id, edit_buffer)
+    pub sidebar_collapsed: bool,
 }
 
 impl App {
@@ -136,6 +137,7 @@ impl App {
             default_model: String::new(),
             sidebar_confirm_delete: None,
             sidebar_renaming: None,
+            sidebar_collapsed: false,
         }
     }
 
@@ -150,9 +152,10 @@ impl App {
         let size = frame.area();
 
         // Horizontal split: sidebar | right
+        let sidebar_width = if self.sidebar_collapsed { 0 } else { 30 };
         let h_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(30), Constraint::Min(1)])
+            .constraints([Constraint::Length(sidebar_width), Constraint::Min(1)])
             .split(size);
 
         // Right panel: conversation | [stats bar] | input
@@ -175,6 +178,7 @@ impl App {
             .constraints(v_constraints)
             .split(h_chunks[1]);
 
+        if !self.sidebar_collapsed {
         self.sidebar.render(
             frame,
             h_chunks[0],
@@ -186,6 +190,7 @@ impl App {
             self.sidebar_confirm_delete.as_deref(),
             self.sidebar_renaming.as_ref().map(|(id, buf)| (id.as_str(), buf.as_str())),
         );
+        }
 
         self.conversation.render(
             frame,
@@ -496,6 +501,15 @@ impl App {
                 }
                 KeyCode::Char('h') => {
                     self.overlay = Overlay::Help;
+                    return;
+                }
+                KeyCode::Char('l') => {
+                    self.sidebar_collapsed = !self.sidebar_collapsed;
+                    // If collapsing while focused on sidebar, move to input
+                    if self.sidebar_collapsed && self.focus == Focus::Sidebar {
+                        self.focus = Focus::Input;
+                        self.update_focus_state();
+                    }
                     return;
                 }
                 KeyCode::Char('y') => {
@@ -1275,7 +1289,13 @@ impl App {
 
     fn cycle_focus_forward(&mut self) {
         self.focus = match self.focus {
-            Focus::Input => Focus::Sidebar,
+            Focus::Input => {
+                if self.sidebar_collapsed {
+                    Focus::Conversation
+                } else {
+                    Focus::Sidebar
+                }
+            }
             Focus::Sidebar => Focus::Conversation,
             Focus::Conversation => Focus::Input,
         };
@@ -1284,7 +1304,13 @@ impl App {
     fn cycle_focus_backward(&mut self) {
         self.focus = match self.focus {
             Focus::Input => Focus::Conversation,
-            Focus::Conversation => Focus::Sidebar,
+            Focus::Conversation => {
+                if self.sidebar_collapsed {
+                    Focus::Input
+                } else {
+                    Focus::Sidebar
+                }
+            }
             Focus::Sidebar => Focus::Input,
         };
     }
