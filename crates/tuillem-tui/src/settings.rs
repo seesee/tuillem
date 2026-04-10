@@ -16,6 +16,12 @@ pub enum SettingValue {
         options: Vec<String>,
         selected: usize,
     },
+    /// Model selector: shows configured models + "Add new..." option
+    ModelSelect {
+        models: Vec<String>,
+        selected: usize,
+        adding: bool,
+    },
 }
 
 impl SettingValue {
@@ -39,6 +45,9 @@ impl SettingValue {
             }
             SettingValue::Enum { options, selected } => {
                 options.get(*selected).cloned().unwrap_or_default()
+            }
+            SettingValue::ModelSelect { models, selected, .. } => {
+                models.get(*selected).cloned().unwrap_or_default()
             }
         }
     }
@@ -77,17 +86,51 @@ impl SettingsPanel {
         layout: &str,
         date_format: &str,
         scroll_lines: u16,
+        available_models: &[(String, Vec<String>)],
     ) -> Self {
+        // Build model list for current provider
+        let provider_models: Vec<String> = available_models
+            .iter()
+            .find(|(name, _)| name == default_provider)
+            .map(|(_, models)| models.clone())
+            .unwrap_or_default();
+        let model_idx = provider_models
+            .iter()
+            .position(|m| m == default_model)
+            .unwrap_or(0);
+
+        // Build provider list from available_models
+        let provider_names: Vec<String> = available_models.iter().map(|(n, _)| n.clone()).collect();
+        let provider_idx = provider_names
+            .iter()
+            .position(|p| p == default_provider)
+            .unwrap_or(0);
+
         let items = vec![
             SettingItem {
                 label: "Default Provider".to_string(),
                 key: "defaults.provider".to_string(),
-                value: SettingValue::Text(default_provider.to_string()),
+                value: if provider_names.is_empty() {
+                    SettingValue::Text(default_provider.to_string())
+                } else {
+                    SettingValue::Enum {
+                        options: provider_names,
+                        selected: provider_idx,
+                    }
+                },
             },
             SettingItem {
                 label: "Default Model".to_string(),
                 key: "defaults.model".to_string(),
-                value: SettingValue::Text(default_model.to_string()),
+                value: if provider_models.is_empty() {
+                    SettingValue::Text(default_model.to_string())
+                } else {
+                    SettingValue::ModelSelect {
+                        models: provider_models,
+                        selected: model_idx,
+                        adding: false,
+                    }
+                },
             },
             SettingItem {
                 label: "Editor Command".to_string(),
@@ -234,6 +277,24 @@ impl SettingsPanel {
                     self.edit_buffer = s.clone();
                     self.editing = true;
                 }
+                SettingValue::ModelSelect {
+                    models,
+                    selected,
+                    adding,
+                } => {
+                    if *adding {
+                        // Already in add mode — handled by edit keys
+                    } else if *selected >= models.len() {
+                        // "Add new..." selected — enter add mode
+                        *adding = true;
+                        self.edit_buffer.clear();
+                        self.editing = true;
+                    } else {
+                        // Cycle through models, with "Add new..." as last option
+                        *selected = (*selected + 1) % (models.len() + 1);
+                        self.dirty = true;
+                    }
+                }
             }
         }
     }
@@ -241,11 +302,29 @@ impl SettingsPanel {
     /// Accept the edit buffer into the value.
     pub fn confirm_edit(&mut self) {
         if self.editing {
-            if let Some(item) = self.items.get_mut(self.selected)
-                && let SettingValue::Text(ref mut s) = item.value
-            {
-                *s = self.edit_buffer.clone();
-                self.dirty = true;
+            if let Some(item) = self.items.get_mut(self.selected) {
+                match &mut item.value {
+                    SettingValue::Text(s) => {
+                        *s = self.edit_buffer.clone();
+                        self.dirty = true;
+                    }
+                    SettingValue::ModelSelect {
+                        models,
+                        selected,
+                        adding,
+                    } => {
+                        if *adding && !self.edit_buffer.trim().is_empty() {
+                            let new_model = self.edit_buffer.trim().to_string();
+                            models.push(new_model);
+                            *selected = models.len() - 1;
+                            *adding = false;
+                            self.dirty = true;
+                        } else {
+                            *adding = false;
+                        }
+                    }
+                    _ => {}
+                }
             }
             self.editing = false;
             self.edit_buffer.clear();
@@ -253,6 +332,11 @@ impl SettingsPanel {
     }
 
     pub fn cancel_edit(&mut self) {
+        if let Some(item) = self.items.get_mut(self.selected) {
+            if let SettingValue::ModelSelect { adding, .. } = &mut item.value {
+                *adding = false;
+            }
+        }
         self.editing = false;
         self.edit_buffer.clear();
     }
@@ -271,6 +355,17 @@ impl SettingsPanel {
             .iter()
             .find(|i| i.key == key)
             .map(|i| i.value.display())
+    }
+
+    /// Get the full model list (if this key is a ModelSelect).
+    pub fn get_model_list(&self, key: &str) -> Option<Vec<String>> {
+        self.items.iter().find(|i| i.key == key).and_then(|i| {
+            if let SettingValue::ModelSelect { models, .. } = &i.value {
+                Some(models.clone())
+            } else {
+                None
+            }
+        })
     }
 
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -295,9 +390,23 @@ impl SettingsPanel {
             let label_style = if selected { accent } else { normal };
 
             let value_display = if self.editing && selected {
-                format!("{}|", self.edit_buffer)
+                match &item.value {
+                    SettingValue::ModelSelect { adding: true, .. } => {
+                        format!("+ {}|", self.edit_buffer)
+                    }
+                    _ => format!("{}|", self.edit_buffer),
+                }
             } else {
-                item.value.display()
+                match &item.value {
+                    SettingValue::ModelSelect { models, selected: sel, .. } => {
+                        if *sel >= models.len() {
+                            "[+ Add new...]".to_string()
+                        } else {
+                            format!("{} ({}/{})", item.value.display(), sel + 1, models.len())
+                        }
+                    }
+                    _ => item.value.display(),
+                }
             };
 
             let value_style = if selected {

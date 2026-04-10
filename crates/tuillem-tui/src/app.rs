@@ -1056,6 +1056,7 @@ impl App {
             &self.layout,
             &self.date_format,
             self.scroll_lines,
+            &self.available_models,
         );
         self.overlay = Overlay::Settings(panel);
     }
@@ -1068,6 +1069,16 @@ impl App {
             }
             if let Some(v) = panel.get_value("defaults.model") {
                 self.default_model = v;
+            }
+            // Update available_models if models were added
+            if let Some(models) = panel.get_model_list("defaults.model") {
+                if let Some(entry) = self
+                    .available_models
+                    .iter_mut()
+                    .find(|(name, _)| *name == self.default_provider)
+                {
+                    entry.1 = models;
+                }
             }
             if let Some(v) = panel.get_value("editor") {
                 self.editor_command = v;
@@ -1141,6 +1152,12 @@ impl App {
         }
         if !self.default_model.is_empty() {
             config.defaults.model = Some(self.default_model.clone());
+        }
+        // Sync model lists from available_models to config providers
+        for (provider_name, models) in &self.available_models {
+            if let Some(pc) = config.providers.iter_mut().find(|p| &p.name == provider_name) {
+                pc.models = models.clone();
+            }
         }
         if self.config_system_prompt.is_empty() {
             config.defaults.system_prompt = None;
