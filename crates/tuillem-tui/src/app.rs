@@ -1390,6 +1390,58 @@ impl App {
         }
     }
 
+    /// Apply a parsed config to the running app (live reload).
+    fn apply_config(&mut self, config: &tuillem_config::Config) {
+        // Theme
+        self.config_theme = config.theme.clone();
+        self.theme = Theme::from_config(&config.theme, &config.themes);
+
+        // Editor
+        self.editor_command = config.editor.clone();
+
+        // Keybindings
+        self.config_keybindings = match config.keybindings {
+            tuillem_config::KeybindingPreset::Vim => "vim".to_string(),
+            tuillem_config::KeybindingPreset::Emacs => "emacs".to_string(),
+            tuillem_config::KeybindingPreset::Default => "default".to_string(),
+        };
+
+        // UI settings
+        self.config_show_thinking = config.ui.show_thinking;
+        self.config_show_token_usage = config.ui.show_token_usage;
+        self.config_mouse = config.ui.mouse;
+        self.show_stats = config.ui.show_stats;
+        self.layout = config.ui.layout.clone();
+        self.date_format = config.ui.date_format.clone();
+        self.scroll_lines = config.ui.scroll_lines;
+
+        // Defaults
+        self.default_provider = config
+            .defaults
+            .provider
+            .clone()
+            .unwrap_or_else(|| config.providers.first().map(|p| p.name.clone()).unwrap_or_default());
+        self.default_model = config
+            .defaults
+            .model
+            .clone()
+            .unwrap_or_else(|| {
+                config.providers.first()
+                    .and_then(|p| p.default_model.clone().or_else(|| p.models.first().cloned()))
+                    .unwrap_or_default()
+            });
+
+        // System prompt
+        self.config_system_prompt = config.defaults.system_prompt.clone().unwrap_or_default();
+
+        // Available models
+        self.available_models = config
+            .providers
+            .iter()
+            .map(|p| (p.name.clone(), p.models.clone()))
+            .collect();
+    }
+
     /// Open config YAML in editor with validation loop.
     /// Edits a copy; only replaces the real config if it parses correctly.
     fn edit_config_yaml(&mut self) {
@@ -1459,7 +1511,7 @@ impl App {
 
             // Validate by parsing
             match tuillem_config::Config::from_yaml(&edited_yaml) {
-                Ok(_) => {
+                Ok(new_config) => {
                     // Valid — replace the real config
                     if let Some(parent) = config_path.parent() {
                         let _ = std::fs::create_dir_all(parent);
@@ -1467,8 +1519,10 @@ impl App {
                     match std::fs::write(&config_path, &edited_yaml) {
                         Ok(_) => {
                             let _ = std::fs::remove_file(&tmp_path);
+                            // Reload config into the running app
+                            self.apply_config(&new_config);
                             self.state.status_message = Some((
-                                "Config saved! Restart to apply all changes.".to_string(),
+                                "Config saved and applied.".to_string(),
                                 std::time::Instant::now(),
                             ));
                             return;
