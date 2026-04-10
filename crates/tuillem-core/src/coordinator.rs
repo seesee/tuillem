@@ -625,8 +625,8 @@ impl Coordinator {
                     assistant_content.chars().take(200).collect::<String>()
                 ),
             }],
-            system: Some("You generate short conversation titles. Reply with only the title text, nothing else.".to_string()),
-            max_tokens: Some(20),
+            system: Some("You generate short conversation titles. Reply with ONLY the title text — no quotes, no markdown, no explanation, no punctuation at the end.".to_string()),
+            max_tokens: Some(50),
             temperature: Some(0.3),
         };
 
@@ -637,24 +637,45 @@ impl Coordinator {
                 while let Some(result) = stream.next().await {
                     match result {
                         Ok(StreamDelta::Text(t)) => title.push_str(&t),
+                        // Some models put response in thinking deltas
+                        Ok(StreamDelta::Thinking(t)) => {
+                            if title.is_empty() {
+                                title.push_str(&t);
+                            }
+                        }
                         Ok(StreamDelta::Done) => break,
-                        Err(_) => return,
+                        Err(e) => {
+                            debug!("Auto-rename stream error: {e}");
+                            break;
+                        }
                         _ => {}
                     }
                 }
-                let title = title.trim().to_string();
-                if !title.is_empty() && title.len() < 80 {
+                // Clean up the title: strip quotes, markdown, newlines
+                let title = title
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .trim_matches('*')
+                    .trim_matches('#')
+                    .replace('\n', " ")
+                    .trim()
+                    .to_string();
+                if !title.is_empty() && title.chars().count() < 80 {
                     debug!("Auto-rename: '{}'", title);
                     if self.db.update_session_title(session_id, &title).is_ok() {
                         let _ = event_tx.send(Event::SessionRenamed {
                             id: session_id.to_string(),
-                            title,
+                            title: title.clone(),
                         });
+                        self.send_sessions_loaded(event_tx);
                     }
+                } else {
+                    debug!("Auto-rename: got unusable title: '{}'", title);
                 }
             }
             Err(e) => {
-                debug!("Auto-rename failed: {e}");
+                debug!("Auto-rename request failed: {e}");
             }
         }
     }
