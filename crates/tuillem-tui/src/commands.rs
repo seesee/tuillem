@@ -319,11 +319,12 @@ pub fn render_commands_help(
     area: ratatui::layout::Rect,
     theme: &crate::theme::Theme,
     prefix: &str,
+    scroll: u16,
 ) {
     use ratatui::{
         style::{Modifier, Style},
         text::{Line, Span},
-        widgets::{Block, Borders, Clear, Paragraph, Wrap},
+        widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
     };
 
     let popup_width = 64u16.min(area.width.saturating_sub(6));
@@ -406,17 +407,52 @@ pub fn render_commands_help(
         ]),
     ];
 
+    let total_lines = lines.len() as u16;
+    let inner_height = popup_height.saturating_sub(2);
+
+    let scroll_hint = if total_lines > inner_height {
+        " j/k:scroll  Esc:close "
+    } else {
+        " Esc:close "
+    };
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent))
         .title(Line::from(Span::styled(" Slash Commands ", accent)))
-        .title_bottom(Line::from(Span::styled(" Esc:close ", dim)))
+        .title_bottom(Line::from(Span::styled(scroll_hint, dim)))
         .style(Style::default().bg(theme.bg));
 
     let paragraph = Paragraph::new(lines)
         .block(block)
-        .wrap(Wrap { trim: false });
+        .wrap(Wrap { trim: false })
+        .scroll((scroll, 0));
     frame.render_widget(paragraph, popup_area);
+
+    // Scrollbar if content exceeds popup
+    if total_lines > inner_height {
+        let inner_area = ratatui::layout::Rect::new(
+            popup_area.x + 1,
+            popup_area.y + 1,
+            popup_area.width.saturating_sub(2),
+            inner_height,
+        );
+        let mut scrollbar_state = ScrollbarState::new(total_lines as usize)
+            .position(scroll as usize)
+            .viewport_content_length(inner_height as usize);
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .track_style(Style::default().fg(theme.border))
+            .thumb_style(Style::default().fg(theme.accent));
+        frame.render_stateful_widget(scrollbar, inner_area, &mut scrollbar_state);
+    }
+}
+
+/// Returns the maximum scroll offset for the commands help overlay at the given area size.
+pub fn commands_help_max_scroll(area: ratatui::layout::Rect) -> u16 {
+    let popup_height = 30u16.min(area.height.saturating_sub(4));
+    let inner_height = popup_height.saturating_sub(2);
+    let total_lines: u16 = 20; // number of lines in the commands help content
+    total_lines.saturating_sub(inner_height)
 }
 
 #[cfg(test)]

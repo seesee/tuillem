@@ -102,6 +102,12 @@ pub struct App {
     pub command_prefix: String,
     /// Set when /clear is issued; next Enter confirms.
     pub pending_clear: bool,
+    /// Scroll offset for the keyboard help overlay.
+    pub help_scroll: u16,
+    /// Scroll offset for the commands help overlay.
+    pub commands_help_scroll: u16,
+    /// Last known terminal area (for overlay scroll calculations in key handlers).
+    pub last_area: Rect,
 }
 
 impl App {
@@ -146,6 +152,9 @@ impl App {
             sidebar_collapsed: false,
             command_prefix: "/".to_string(),
             pending_clear: false,
+            help_scroll: 0,
+            commands_help_scroll: 0,
+            last_area: Rect::default(),
         }
     }
 
@@ -158,6 +167,7 @@ impl App {
         }
 
         let size = frame.area();
+        self.last_area = size;
 
         // Horizontal split: sidebar | right
         let sidebar_width = if self.sidebar_collapsed { 0 } else { 30 };
@@ -236,10 +246,10 @@ impl App {
         match &self.overlay {
             Overlay::None => {}
             Overlay::Help => {
-                render_help(frame, size, &self.theme);
+                render_help(frame, size, &self.theme, self.help_scroll);
             }
             Overlay::CommandsHelp => {
-                render_commands_help(frame, size, &self.theme, &self.command_prefix);
+                render_commands_help(frame, size, &self.theme, &self.command_prefix, self.commands_help_scroll);
             }
             Overlay::Control(panel) => {
                 panel.render(frame, size, &self.theme);
@@ -511,6 +521,7 @@ impl App {
                     return;
                 }
                 KeyCode::Char('h') => {
+                    self.help_scroll = 0;
                     self.overlay = Overlay::Help;
                     return;
                 }
@@ -592,17 +603,36 @@ impl App {
         match &mut self.overlay {
             Overlay::None => {}
             Overlay::Help => {
-                if key.code == KeyCode::Esc
-                    || key.code == KeyCode::Char('q')
-                    || (key.modifiers.contains(KeyModifiers::CONTROL)
-                        && key.code == KeyCode::Char('h'))
-                {
-                    self.overlay = Overlay::None;
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('q') => {
+                        self.overlay = Overlay::None;
+                    }
+                    KeyCode::Char('h') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.overlay = Overlay::None;
+                    }
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        let max = crate::help::help_max_scroll(self.last_area);
+                        self.help_scroll = self.help_scroll.saturating_add(1).min(max);
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.help_scroll = self.help_scroll.saturating_sub(1);
+                    }
+                    _ => {}
                 }
             }
             Overlay::CommandsHelp => {
-                if key.code == KeyCode::Esc || key.code == KeyCode::Char('q') {
-                    self.overlay = Overlay::None;
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('q') => {
+                        self.overlay = Overlay::None;
+                    }
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        let max = crate::commands::commands_help_max_scroll(self.last_area);
+                        self.commands_help_scroll = self.commands_help_scroll.saturating_add(1).min(max);
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.commands_help_scroll = self.commands_help_scroll.saturating_sub(1);
+                    }
+                    _ => {}
                 }
             }
             Overlay::Control(panel) => match key.code {
@@ -1275,6 +1305,7 @@ impl App {
     fn execute_command_result(&mut self, result: commands::CommandResult) {
         // Show help overlay
         if result.show_help {
+            self.commands_help_scroll = 0;
             self.overlay = Overlay::CommandsHelp;
             return;
         }

@@ -3,12 +3,12 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
 };
 
 use crate::theme::Theme;
 
-pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
+pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme, scroll: u16) {
     let popup_width = 60u16.min(area.width.saturating_sub(6));
     let popup_height = 38u16.min(area.height.saturating_sub(4));
     let x = (area.width.saturating_sub(popup_width)) / 2;
@@ -143,15 +143,52 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
         ]),
     ];
 
+    let total_lines = lines.len() as u16;
+    // Inner height = popup_height - 2 (for top/bottom border)
+    let inner_height = popup_height.saturating_sub(2);
+
+    let scroll_hint = if total_lines > inner_height {
+        " j/k:scroll  Esc:close "
+    } else {
+        " Esc:close "
+    };
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent))
         .title(Line::from(Span::styled(" Keyboard Shortcuts ", accent)))
-        .title_bottom(Line::from(Span::styled(" Esc:close ", dim)))
+        .title_bottom(Line::from(Span::styled(scroll_hint, dim)))
         .style(Style::default().bg(theme.bg));
 
     let paragraph = Paragraph::new(lines)
         .block(block)
-        .wrap(Wrap { trim: false });
+        .wrap(Wrap { trim: false })
+        .scroll((scroll, 0));
     frame.render_widget(paragraph, popup_area);
+
+    // Scrollbar if content exceeds popup
+    if total_lines > inner_height {
+        // Scrollbar area is the inner area of the popup (excluding borders)
+        let inner_area = Rect::new(
+            popup_area.x + 1,
+            popup_area.y + 1,
+            popup_area.width.saturating_sub(2),
+            inner_height,
+        );
+        let mut scrollbar_state = ScrollbarState::new(total_lines as usize)
+            .position(scroll as usize)
+            .viewport_content_length(inner_height as usize);
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .track_style(Style::default().fg(theme.border))
+            .thumb_style(Style::default().fg(theme.accent));
+        frame.render_stateful_widget(scrollbar, inner_area, &mut scrollbar_state);
+    }
+}
+
+/// Returns the maximum scroll offset for the help overlay at the given area size.
+pub fn help_max_scroll(area: Rect) -> u16 {
+    let popup_height = 38u16.min(area.height.saturating_sub(4));
+    let inner_height = popup_height.saturating_sub(2);
+    let total_lines: u16 = 37; // number of lines in the help content
+    total_lines.saturating_sub(inner_height)
 }

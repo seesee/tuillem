@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span, Text},
-    widgets::Paragraph,
+    widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 use tuillem_core::actions::MessageView;
 
@@ -441,6 +441,17 @@ impl Conversation {
             .scroll((self.scroll_offset, 0));
 
         frame.render_widget(paragraph, area);
+
+        // Scrollbar on the right edge when content exceeds viewport
+        if self.total_lines > self.visible_height {
+            let mut scrollbar_state = ScrollbarState::new(self.total_lines as usize)
+                .position(self.scroll_offset as usize)
+                .viewport_content_length(self.visible_height as usize);
+            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                .track_style(Style::default().fg(theme.border))
+                .thumb_style(Style::default().fg(theme.accent));
+            frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+        }
 
         // "More content" indicator at bottom-right when not at the end
         let max_offset = self.total_lines.saturating_sub(self.visible_height);
