@@ -920,18 +920,22 @@ impl App {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 self.sidebar.move_down(session_count, 1);
+                self.preview_selected_session();
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 self.sidebar.move_up(1);
+                self.preview_selected_session();
             }
             KeyCode::Char('g') => {
                 self.sidebar.selected = 0;
                 self.sidebar.scroll_offset = 0;
+                self.preview_selected_session();
             }
             KeyCode::Char('G') => {
                 if session_count > 0 {
                     self.sidebar.selected = session_count - 1;
                 }
+                self.preview_selected_session();
             }
             KeyCode::Enter => {
                 let filtered = self.sidebar.filtered_sessions(&self.state.sessions);
@@ -1324,6 +1328,17 @@ impl App {
             });
         }
         self.sidebar.selected = 0;
+    }
+
+    /// Preview the currently highlighted session in the conversation pane
+    /// without fully selecting it (Enter does the full select + focus switch).
+    fn preview_selected_session(&mut self) {
+        let filtered = self.sidebar.filtered_sessions(&self.state.sessions);
+        if let Some(session) = filtered.get(self.sidebar.selected) {
+            let _ = self.action_tx.send(Action::SelectSession {
+                id: session.id.clone(),
+            });
+        }
     }
 
     fn build_command_context(&self) -> CommandContext<'_> {
