@@ -61,6 +61,7 @@ impl Sidebar {
         sessions: &[SessionSummary],
         focused: bool,
         theme: &Theme,
+        layout: &str,
     ) {
         let border_style = if focused {
             Style::default().fg(theme.accent)
@@ -121,11 +122,12 @@ impl Sidebar {
 
         let filtered = self.filtered_sessions(sessions);
 
+        let lines_per_item: usize = if layout == "loose" { 3 } else { 2 };
         let items: Vec<ListItem> = filtered
             .iter()
             .enumerate()
             .skip(self.scroll_offset)
-            .take(list_area.height as usize / 2) // 2 lines per item
+            .take(list_area.height as usize / lines_per_item)
             .map(|(i, session)| {
                 let is_selected = i == self.selected;
                 let style = if is_selected {
@@ -153,7 +155,12 @@ impl Sidebar {
                     Style::default().fg(theme.thinking_fg),
                 ));
 
-                ListItem::new(vec![Line::from(title_spans), preview_line]).style(if is_selected {
+                let mut item_lines = vec![Line::from(title_spans), preview_line];
+                if layout == "loose" {
+                    item_lines.push(Line::from(""));
+                }
+
+                ListItem::new(item_lines).style(if is_selected {
                     Style::default().bg(theme.sidebar_bg)
                 } else {
                     Style::default()

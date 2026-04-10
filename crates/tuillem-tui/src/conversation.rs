@@ -45,8 +45,12 @@ impl Conversation {
         status_message: Option<&str>,
         focused: bool,
         theme: &Theme,
+        layout: &str,
     ) {
-        let content_width = area.width.saturating_sub(2) as usize;
+        let is_loose = layout == "loose";
+        let margin: usize = if is_loose { 2 } else { 0 };
+        let margin_str: &str = if is_loose { "  " } else { "" };
+        let content_width = area.width.saturating_sub(2).saturating_sub(margin as u16) as usize;
         let mut lines: Vec<Line<'static>> = Vec::new();
 
         // Model indicator at top with focus hint
@@ -57,7 +61,7 @@ impl Conversation {
         };
         lines.push(Line::from(vec![
             Span::styled(
-                format!(" Model: {} ", current_model),
+                format!("{} Model: {} ", margin_str, current_model),
                 Style::default()
                     .fg(theme.accent)
                     .add_modifier(Modifier::BOLD),
@@ -96,7 +100,10 @@ impl Conversation {
                     Line::from(Span::styled(role_label, role_style)).alignment(Alignment::Right),
                 );
             } else {
-                lines.push(Line::from(Span::styled(role_label, role_style)));
+                lines.push(Line::from(Span::styled(
+                    format!("{}{}", margin_str, role_label),
+                    role_style,
+                )));
             }
 
             // Thinking blocks
@@ -106,12 +113,12 @@ impl Conversation {
                     if is_expanded {
                         let content = block.content.as_deref().unwrap_or("");
                         lines.push(Line::from(Span::styled(
-                            " [thinking] (press t to collapse)",
+                            format!("{} [thinking] (press t to collapse)", margin_str),
                             theme.thinking_style(),
                         )));
                         for line in content.lines() {
                             lines.push(Line::from(Span::styled(
-                                format!("  {}", line),
+                                format!("{}  {}", margin_str, line),
                                 theme.thinking_style(),
                             )));
                         }
@@ -124,7 +131,7 @@ impl Conversation {
                             .take(40)
                             .collect::<String>();
                         lines.push(Line::from(Span::styled(
-                            format!(" [thinking] {}... (press t to expand)", preview),
+                            format!("{} [thinking] {}... (press t to expand)", margin_str, preview),
                             theme.thinking_style(),
                         )));
                     }
@@ -136,17 +143,64 @@ impl Conversation {
                 if is_user {
                     // User messages: right-aligned with distinct background
                     let user_style = Style::default().fg(theme.fg).bg(theme.user_msg_bg);
-                    for text_line in content.lines() {
-                        if text_line.is_empty() {
-                            lines.push(Line::from(""));
-                        } else {
-                            for wrapped in
-                                tuillem_markdown::width::wrap_to_width(text_line, content_width)
-                            {
-                                lines.push(
-                                    Line::from(Span::styled(format!(" {} ", wrapped), user_style))
+                    if is_loose {
+                        // Loose mode: bubble effect with bg-colored blank lines above/below
+                        // First, collect all wrapped lines to find max width for uniform bubble
+                        let mut msg_lines: Vec<String> = Vec::new();
+                        for text_line in content.lines() {
+                            if text_line.is_empty() {
+                                msg_lines.push(String::new());
+                            } else {
+                                for wrapped in
+                                    tuillem_markdown::width::wrap_to_width(text_line, content_width)
+                                {
+                                    msg_lines.push(wrapped);
+                                }
+                            }
+                        }
+                        let max_line_w = msg_lines
+                            .iter()
+                            .map(|l| tuillem_markdown::width::terminal_width(l))
+                            .max()
+                            .unwrap_or(0);
+                        let bubble_w = max_line_w + 2; // 1 space padding each side
+
+                        // Top blank line (bg-colored)
+                        let blank = format!("{:width$}", "", width = bubble_w);
+                        lines.push(
+                            Line::from(Span::styled(blank.clone(), user_style))
+                                .alignment(Alignment::Right),
+                        );
+                        // Message lines, padded to uniform width
+                        for ml in &msg_lines {
+                            let padded = format!(" {:width$} ", ml, width = max_line_w);
+                            lines.push(
+                                Line::from(Span::styled(padded, user_style))
+                                    .alignment(Alignment::Right),
+                            );
+                        }
+                        // Bottom blank line (bg-colored)
+                        lines.push(
+                            Line::from(Span::styled(blank, user_style))
+                                .alignment(Alignment::Right),
+                        );
+                    } else {
+                        // Tight mode: original behavior
+                        for text_line in content.lines() {
+                            if text_line.is_empty() {
+                                lines.push(Line::from(""));
+                            } else {
+                                for wrapped in
+                                    tuillem_markdown::width::wrap_to_width(text_line, content_width)
+                                {
+                                    lines.push(
+                                        Line::from(Span::styled(
+                                            format!(" {} ", wrapped),
+                                            user_style,
+                                        ))
                                         .alignment(Alignment::Right),
-                                );
+                                    );
+                                }
                             }
                         }
                     }
@@ -176,18 +230,31 @@ impl Conversation {
                                     &full_text,
                                     content_width,
                                 ) {
-                                    lines.push(Line::from(Span::styled(wrapped, style)));
+                                    lines.push(Line::from(Span::styled(
+                                        format!("{}{}", margin_str, wrapped),
+                                        style,
+                                    )));
                                 }
                                 continue;
                             }
                         }
-                        lines.push(line);
+                        if is_loose {
+                            // Prepend margin to assistant lines
+                            let mut new_spans = vec![Span::raw(margin_str.to_string())];
+                            new_spans.extend(line.spans);
+                            lines.push(Line::from(new_spans));
+                        } else {
+                            lines.push(line);
+                        }
                     }
                 }
             }
 
-
+            // Separator between messages
             lines.push(Line::from(""));
+            if is_loose {
+                lines.push(Line::from(""));
+            }
         }
 
         // Streaming content
@@ -203,7 +270,7 @@ impl Conversation {
 
             if !streaming_thinking.is_empty() {
                 lines.push(Line::from(vec![Span::styled(
-                    format!(" {} Thinking... ", throbber),
+                    format!("{} {} Thinking... ", margin_str, throbber),
                     Style::default()
                         .fg(theme.warning)
                         .add_modifier(Modifier::BOLD),
@@ -234,18 +301,27 @@ impl Conversation {
                             for wrapped in
                                 tuillem_markdown::width::wrap_to_width(&full_text, content_width)
                             {
-                                lines.push(Line::from(Span::styled(wrapped, style)));
+                                lines.push(Line::from(Span::styled(
+                                    format!("{}{}", margin_str, wrapped),
+                                    style,
+                                )));
                             }
                             continue;
                         }
                     }
-                    lines.push(line);
+                    if is_loose {
+                        let mut new_spans = vec![Span::raw(margin_str.to_string())];
+                        new_spans.extend(line.spans);
+                        lines.push(Line::from(new_spans));
+                    } else {
+                        lines.push(line);
+                    }
                 }
             }
 
             if streaming_text.is_empty() && streaming_thinking.is_empty() {
                 lines.push(Line::from(vec![Span::styled(
-                    format!(" {} Waiting for response...", throbber),
+                    format!("{} {} Waiting for response...", margin_str, throbber),
                     Style::default()
                         .fg(theme.thinking_fg)
                         .add_modifier(Modifier::ITALIC),
@@ -257,7 +333,7 @@ impl Conversation {
         if let Some(err) = error {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
-                format!(" Error: {}", err),
+                format!("{} Error: {}", margin_str, err),
                 theme.error_style().add_modifier(Modifier::BOLD),
             )));
         }
@@ -266,7 +342,7 @@ impl Conversation {
         if let Some(msg) = status_message {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
-                format!(" {}", msg),
+                format!("{} {}", margin_str, msg),
                 Style::default()
                     .fg(theme.success)
                     .add_modifier(Modifier::ITALIC),

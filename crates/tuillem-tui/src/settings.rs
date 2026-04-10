@@ -74,6 +74,7 @@ impl SettingsPanel {
         mouse_enabled: bool,
         system_prompt: &str,
         show_stats: bool,
+        layout: &str,
     ) -> Self {
         let items = vec![
             SettingItem {
@@ -134,6 +135,14 @@ impl SettingsPanel {
                 label: "Stats for Nerds".to_string(),
                 key: "ui.show_stats".to_string(),
                 value: SettingValue::Bool(show_stats),
+            },
+            SettingItem {
+                label: "Layout".to_string(),
+                key: "ui.layout".to_string(),
+                value: SettingValue::Enum {
+                    options: vec!["loose".to_string(), "tight".to_string()],
+                    selected: if layout == "tight" { 1 } else { 0 },
+                },
             },
             SettingItem {
                 label: "System Prompt".to_string(),

@@ -161,6 +161,8 @@ pub struct UiConfig {
     pub mouse: bool,
     #[serde(default)]
     pub show_stats: bool,
+    #[serde(default = "default_layout")]
+    pub layout: String,
 }
 
 impl Default for UiConfig {
@@ -171,8 +173,13 @@ impl Default for UiConfig {
             show_token_usage: true,
             mouse: true,
             show_stats: false,
+            layout: default_layout(),
         }
     }
+}
+
+fn default_layout() -> String {
+    "loose".to_string()
 }
 
 fn default_sidebar_width() -> u16 {
@@ -318,6 +325,7 @@ mod tests {
         assert!(!config.ui.show_thinking);
         assert!(config.ui.show_token_usage);
         assert!(config.ui.mouse);
+        assert_eq!(config.ui.layout, "loose");
     }
 
     #[test]

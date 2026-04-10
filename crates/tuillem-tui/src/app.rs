@@ -87,6 +87,7 @@ pub struct App {
     pub config_mouse: bool,
     pub config_system_prompt: String,
     pub show_stats: bool,
+    pub layout: String,
 }
 
 impl App {
@@ -121,6 +122,7 @@ impl App {
             config_mouse: true,
             config_system_prompt: String::new(),
             show_stats: false,
+            layout: "loose".to_string(),
         }
     }
 
@@ -140,7 +142,8 @@ impl App {
             .constraints([Constraint::Length(30), Constraint::Min(1)])
             .split(size);
 
-        // Right panel: conversation | [stats bar] | input (5 lines)
+        // Right panel: conversation | [stats bar] | input
+        let input_height: u16 = if self.layout == "tight" { 5 } else { 7 };
         let show_stats_bar = self.show_stats
             && !self.state.is_streaming
             && self.state.last_response_stats.is_some();
@@ -149,10 +152,10 @@ impl App {
             vec![
                 Constraint::Min(1),
                 Constraint::Length(1),
-                Constraint::Length(5),
+                Constraint::Length(input_height),
             ]
         } else {
-            vec![Constraint::Min(1), Constraint::Length(5)]
+            vec![Constraint::Min(1), Constraint::Length(input_height)]
         };
         let v_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -165,6 +168,7 @@ impl App {
             &self.state.sessions,
             self.focus == Focus::Sidebar,
             &self.theme,
+            &self.layout,
         );
 
         self.conversation.render(
@@ -179,6 +183,7 @@ impl App {
             self.state.status_message.as_ref().map(|(msg, _)| msg.as_str()),
             self.focus == Focus::Conversation,
             &self.theme,
+            &self.layout,
         );
 
         if show_stats_bar {
@@ -916,6 +921,7 @@ impl App {
             self.config_mouse,
             &self.config_system_prompt,
             self.show_stats,
+            &self.layout,
         );
         self.overlay = Overlay::Settings(panel);
     }
@@ -947,6 +953,9 @@ impl App {
             if let Some(v) = panel.get_value("defaults.system_prompt") {
                 self.config_system_prompt = if v == "(empty)" { String::new() } else { v };
             }
+            if let Some(v) = panel.get_value("ui.layout") {
+                self.layout = v;
+            }
             // Write to config file
             self.write_config_file();
         }
@@ -972,6 +981,7 @@ impl App {
         config.ui.show_token_usage = self.config_show_token_usage;
         config.ui.mouse = self.config_mouse;
         config.ui.show_stats = self.show_stats;
+        config.ui.layout = self.layout.clone();
         if self.config_system_prompt.is_empty() {
             config.defaults.system_prompt = None;
         } else {
