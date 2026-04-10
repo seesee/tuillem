@@ -194,9 +194,84 @@ impl Theme {
         }
     }
 
+    /// Solarized Light palette.
+    pub fn solarized_light() -> Self {
+        Self {
+            bg: Color::Rgb(253, 246, 227),               // #fdf6e3
+            fg: Color::Rgb(101, 123, 131),               // #657b83
+            sidebar_bg: Color::Rgb(238, 232, 213),       // #eee8d5
+            sidebar_fg: Color::Rgb(101, 123, 131),       // #657b83
+            sidebar_selected: Color::Rgb(38, 139, 210),  // #268bd2
+            user_msg_bg: Color::Rgb(238, 232, 213),      // #eee8d5
+            assistant_msg_bg: Color::Rgb(253, 246, 227), // #fdf6e3
+            thinking_fg: Color::Rgb(147, 161, 161),      // #93a1a1
+            accent: Color::Rgb(38, 139, 210),            // #268bd2
+            error: Color::Rgb(220, 50, 47),              // #dc322f
+            success: Color::Rgb(133, 153, 0),            // #859900
+            warning: Color::Rgb(181, 137, 0),            // #b58900
+            border: Color::Rgb(147, 161, 161),           // #93a1a1
+            code_bg: Color::Rgb(238, 232, 213),          // #eee8d5
+            code_fg: Color::Rgb(42, 161, 152),           // #2aa198
+            heading: Color::Rgb(108, 113, 196),          // #6c71c4
+            link: Color::Rgb(42, 161, 152),              // #2aa198
+            tag: Color::Rgb(211, 54, 130),               // #d33682
+        }
+    }
+
+    /// GitHub Light palette.
+    pub fn github_light() -> Self {
+        Self {
+            bg: Color::Rgb(255, 255, 255),               // #ffffff
+            fg: Color::Rgb(31, 35, 40),                  // #1f2328
+            sidebar_bg: Color::Rgb(246, 248, 250),       // #f6f8fa
+            sidebar_fg: Color::Rgb(31, 35, 40),          // #1f2328
+            sidebar_selected: Color::Rgb(9, 105, 218),   // #0969da
+            user_msg_bg: Color::Rgb(221, 244, 255),      // #ddf4ff
+            assistant_msg_bg: Color::Rgb(255, 255, 255), // #ffffff
+            thinking_fg: Color::Rgb(101, 109, 118),      // #656d76
+            accent: Color::Rgb(9, 105, 218),             // #0969da
+            error: Color::Rgb(207, 34, 46),              // #cf222e
+            success: Color::Rgb(26, 127, 55),            // #1a7f37
+            warning: Color::Rgb(154, 103, 0),            // #9a6700
+            border: Color::Rgb(208, 215, 222),           // #d0d7de
+            code_bg: Color::Rgb(246, 248, 250),          // #f6f8fa
+            code_fg: Color::Rgb(26, 127, 55),            // #1a7f37
+            heading: Color::Rgb(9, 105, 218),            // #0969da
+            link: Color::Rgb(9, 105, 218),               // #0969da
+            tag: Color::Rgb(130, 80, 223),               // #8250df
+        }
+    }
+
+    /// Rose Pine Dawn palette (light).
+    pub fn rose_pine_dawn() -> Self {
+        Self {
+            bg: Color::Rgb(250, 244, 237),               // #faf4ed
+            fg: Color::Rgb(87, 82, 121),                 // #575279
+            sidebar_bg: Color::Rgb(255, 250, 243),       // #fffaf3
+            sidebar_fg: Color::Rgb(87, 82, 121),         // #575279
+            sidebar_selected: Color::Rgb(40, 105, 131),  // #286983
+            user_msg_bg: Color::Rgb(242, 233, 222),      // #f2e9de
+            assistant_msg_bg: Color::Rgb(250, 244, 237), // #faf4ed
+            thinking_fg: Color::Rgb(152, 147, 165),      // #9893a5
+            accent: Color::Rgb(40, 105, 131),            // #286983
+            error: Color::Rgb(180, 99, 122),             // #b4637a
+            success: Color::Rgb(40, 105, 131),           // #286983
+            warning: Color::Rgb(234, 157, 52),           // #ea9d34
+            border: Color::Rgb(206, 202, 205),           // #cecacd
+            code_bg: Color::Rgb(242, 233, 222),          // #f2e9de
+            code_fg: Color::Rgb(87, 82, 121),            // #575279
+            heading: Color::Rgb(144, 122, 169),          // #907aa9
+            link: Color::Rgb(40, 105, 131),              // #286983
+            tag: Color::Rgb(144, 122, 169),              // #907aa9
+        }
+    }
+
     /// All built-in theme names.
     pub fn builtin_names() -> &'static [&'static str] {
-        &["dark", "light", "dracula", "nord", "gruvbox", "tokyo_night", "solarized"]
+        &[
+            "dark", "light", "dracula", "nord", "gruvbox", "tokyo_night",
+            "solarized", "solarized_light", "github_light", "rose_pine_dawn",
+        ]
     }
 
     /// Get a theme by name, applying custom overrides if available.
@@ -208,6 +283,9 @@ impl Theme {
             "gruvbox" => Self::gruvbox(),
             "tokyo_night" => Self::tokyo_night(),
             "solarized" => Self::solarized(),
+            "solarized_light" => Self::solarized_light(),
+            "github_light" => Self::github_light(),
+            "rose_pine_dawn" => Self::rose_pine_dawn(),
             _ => Self::dark(),
         };
         match custom_themes.get(name) {

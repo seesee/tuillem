@@ -63,7 +63,8 @@ impl Input {
                 theme.border_style()
             })
             .title_top(title_line)
-            .title_bottom(bottom_line);
+            .title_bottom(bottom_line)
+            .style(Style::default().fg(theme.fg).bg(theme.bg));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -71,11 +72,11 @@ impl Input {
         let display = if self.content.is_empty() {
             Paragraph::new(Span::styled(
                 "Type a message...",
-                Style::default().fg(theme.thinking_fg),
+                Style::default().fg(theme.thinking_fg).bg(theme.bg),
             ))
         } else {
             Paragraph::new(self.content.as_str().to_owned())
-                .style(Style::default().fg(theme.fg))
+                .style(Style::default().fg(theme.fg).bg(theme.bg))
                 .wrap(Wrap { trim: false })
         };
         frame.render_widget(display, inner);
