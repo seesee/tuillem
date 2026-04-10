@@ -394,19 +394,15 @@ impl Conversation {
             ScrollState::FollowBottom => {
                 self.scroll_offset = max_offset;
             }
-            ScrollState::Streaming { start_offset } => {
-                let one_viewport_past = start_offset.saturating_add(self.visible_height);
-                if max_offset > one_viewport_past {
-                    // Response filled a viewport — freeze here
-                    self.scroll_offset = start_offset;
-                    self.scroll_state = ScrollState::Frozen;
-                } else {
-                    // Still filling — follow bottom
-                    self.scroll_offset = max_offset;
-                }
+            ScrollState::Streaming { .. } => {
+                // Don't move scroll during streaming — stay where we are.
+                // Content accumulates above/below; "..." indicator shows.
+                // Clamp in case total_lines shrank (re-render)
+                self.scroll_offset = self.scroll_offset.min(max_offset);
             }
             ScrollState::Frozen => {
                 // Don't touch scroll_offset — user controls it
+                self.scroll_offset = self.scroll_offset.min(max_offset);
             }
         }
 
