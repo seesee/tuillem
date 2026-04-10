@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local, NaiveDate, Utc};
 use ratatui::{
     Frame,
     layout::Rect,
@@ -32,7 +33,10 @@ impl Sidebar {
 
     /// Filter sessions by search query.
     /// Matches on title, tags (client-side), AND conversation content (via FTS results).
-    pub fn filtered_sessions<'a>(&self, sessions: &'a [SessionSummary]) -> Vec<&'a SessionSummary> {
+    pub fn filtered_sessions<'a>(
+        &self,
+        sessions: &'a [SessionSummary],
+    ) -> Vec<&'a SessionSummary> {
         if self.search_input.is_empty() {
             sessions.iter().collect()
         } else {
@@ -40,10 +44,8 @@ impl Sidebar {
             sessions
                 .iter()
                 .filter(|s| {
-                    // Title or tag match (client-side)
                     let title_match = s.title.to_lowercase().contains(&query)
                         || s.tags.iter().any(|t| t.to_lowercase().contains(&query));
-                    // Content match (from FTS results)
                     let content_match = self
                         .content_match_ids
                         .as_ref()
@@ -90,7 +92,7 @@ impl Sidebar {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        if inner.height < 2 {
+        if inner.height < 3 {
             return;
         }
 
@@ -112,61 +114,86 @@ impl Sidebar {
         };
         frame.render_widget(search_line, search_area);
 
-        // Session list below search
+        // Blank line after search (both tight and loose)
         let list_area = Rect {
             x: inner.x,
-            y: inner.y + 1,
+            y: inner.y + 2, // +1 search, +1 blank
             width: inner.width,
-            height: inner.height.saturating_sub(1),
+            height: inner.height.saturating_sub(2),
         };
 
         let filtered = self.filtered_sessions(sessions);
+        let is_loose = layout == "loose";
+        let today = Local::now().date_naive();
 
-        let lines_per_item: usize = if layout == "loose" { 3 } else { 2 };
-        let items: Vec<ListItem> = filtered
-            .iter()
-            .enumerate()
-            .skip(self.scroll_offset)
-            .take(list_area.height as usize / lines_per_item)
-            .map(|(i, session)| {
-                let is_selected = i == self.selected;
-                let style = if is_selected {
-                    theme.sidebar_selected_style().add_modifier(Modifier::BOLD)
-                } else {
-                    theme.sidebar_style()
-                };
+        // Build list items with date group headers
+        let mut items: Vec<ListItem> = Vec::new();
+        let mut current_group: Option<String> = None;
+        let mut item_index = 0; // tracks which filtered session index we're on
+        let header_style = Style::default()
+            .fg(theme.thinking_fg)
+            .add_modifier(Modifier::BOLD);
 
-                let mut title_spans: Vec<Span> = vec![Span::styled(&session.title, style)];
-                for tag in &session.tags {
-                    title_spans.push(Span::raw(" "));
-                    title_spans.push(Span::styled(
-                        format!("[{}]", tag),
-                        Style::default().fg(theme.tag),
-                    ));
+        for session in filtered.iter().skip(self.scroll_offset) {
+            // Date grouping
+            let group = date_group_label(&session.updated_at, today);
+            if current_group.as_ref() != Some(&group) {
+                // Add group header
+                if current_group.is_some() && is_loose {
+                    items.push(ListItem::new(Line::from("")));
                 }
+                items.push(ListItem::new(Line::from(Span::styled(
+                    group.clone(),
+                    header_style,
+                ))));
+                current_group = Some(group);
+            }
 
-                let preview_text = session.preview.as_deref().unwrap_or("").replace('\n', " ");
-                let max_w = inner.width.saturating_sub(4) as usize;
-                let preview_truncated =
-                    tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
+            let is_selected = item_index + self.scroll_offset == self.selected;
+            let style = if is_selected {
+                theme.sidebar_selected_style().add_modifier(Modifier::BOLD)
+            } else {
+                theme.sidebar_style()
+            };
 
-                let preview_line = Line::from(Span::styled(
-                    format!(" {}", preview_truncated),
-                    Style::default().fg(theme.thinking_fg),
+            let mut title_spans: Vec<Span> = vec![Span::styled(&session.title, style)];
+            for tag in &session.tags {
+                title_spans.push(Span::raw(" "));
+                title_spans.push(Span::styled(
+                    format!("[{}]", tag),
+                    Style::default().fg(theme.tag),
                 ));
+            }
 
-                let mut item_lines = vec![Line::from(title_spans), preview_line];
-                if layout == "loose" {
-                    item_lines.push(Line::from(""));
-                }
+            let preview_text = session.preview.as_deref().unwrap_or("").replace('\n', " ");
+            let max_w = inner.width.saturating_sub(4) as usize;
+            let preview_truncated =
+                tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
 
-                ListItem::new(item_lines).style(if is_selected {
-                    Style::default().bg(theme.sidebar_bg)
-                } else {
-                    Style::default()
-                })
-            })
-            .collect();
+            let preview_line = Line::from(Span::styled(
+                format!(" {}", preview_truncated),
+                Style::default().fg(theme.thinking_fg),
+            ));
+
+            let mut item_lines = vec![Line::from(title_spans), preview_line];
+            if is_loose {
+                item_lines.push(Line::from(""));
+            }
+
+            items.push(ListItem::new(item_lines).style(if is_selected {
+                Style::default().bg(theme.sidebar_bg)
+            } else {
+                Style::default()
+            }));
+
+            item_index += 1;
+
+            // Stop if we've filled the visible area (rough estimate)
+            let total_lines: usize = items.iter().map(|i| i.height()).sum();
+            if total_lines >= list_area.height as usize {
+                break;
+            }
+        }
 
         let list = List::new(items);
         frame.render_widget(list, list_area);
@@ -174,20 +201,11 @@ impl Sidebar {
 
     pub fn move_up(&mut self, count: usize) {
         self.selected = self.selected.saturating_sub(count);
-        if self.selected < self.scroll_offset {
-            self.scroll_offset = self.selected;
-        }
     }
 
     pub fn move_down(&mut self, session_count: usize, count: usize) {
-        if session_count == 0 {
-            return;
-        }
-        self.selected = (self.selected + count).min(session_count - 1);
-        // Scrolling will be handled during render based on visible height,
-        // but we do a basic adjustment here.
-        if self.selected >= self.scroll_offset + 20 {
-            self.scroll_offset = self.selected.saturating_sub(19);
+        if session_count > 0 {
+            self.selected = (self.selected + count).min(session_count - 1);
         }
     }
 }
@@ -195,5 +213,29 @@ impl Sidebar {
 impl Default for Sidebar {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Determine the date group label for a session based on its updated_at timestamp.
+fn date_group_label(updated_at: &str, today: NaiveDate) -> String {
+    let date = DateTime::parse_from_rfc3339(updated_at)
+        .map(|dt| dt.with_timezone(&Local).date_naive())
+        .or_else(|_| {
+            // Try parsing as just a date
+            updated_at
+                .parse::<DateTime<Utc>>()
+                .map(|dt| dt.with_timezone(&Local).date_naive())
+        })
+        .unwrap_or(today);
+
+    let days_ago = (today - date).num_days();
+
+    match days_ago {
+        0 => "Today".to_string(),
+        1 => "Yesterday".to_string(),
+        2..=6 => date.format("%A").to_string(), // e.g. "Monday"
+        7..=13 => "Last Week".to_string(),
+        14..=29 => "This Month".to_string(),
+        _ => date.format("%B %Y").to_string(), // e.g. "March 2026"
     }
 }

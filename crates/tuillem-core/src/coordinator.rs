@@ -549,6 +549,7 @@ impl Coordinator {
                     estimated,
                 });
                 self.send_messages_loaded(session_id, event_tx);
+                self.send_sessions_loaded(event_tx);
                 Some(msg.id)
             }
             Err(e) => {
@@ -752,6 +753,22 @@ impl Coordinator {
             Err(e) => {
                 error!("Failed to load messages: {e}");
             }
+        }
+    }
+
+    /// Refresh the full sessions list (with previews) and send to UI.
+    fn send_sessions_loaded(&self, event_tx: &mpsc::UnboundedSender<Event>) {
+        if let Ok(sessions) = self.db.list_sessions() {
+            let summaries = sessions
+                .iter()
+                .map(|s| {
+                    let preview = self.db.get_session_last_message(&s.id).ok().flatten();
+                    session_to_summary(s, preview)
+                })
+                .collect();
+            let _ = event_tx.send(Event::SessionsLoaded {
+                sessions: summaries,
+            });
         }
     }
 }
