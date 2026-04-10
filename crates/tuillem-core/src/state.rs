@@ -106,7 +106,7 @@ impl AppState {
                 self.streaming_text.clear();
                 self.streaming_thinking.clear();
                 self.is_streaming = false;
-                if *tokens_in > 0 || *tokens_out > 0 {
+                if *tokens_in > 0 || *tokens_out > 0 || *latency_ms > 0 {
                     self.last_response_stats = Some(ResponseStats {
                         tokens_in: *tokens_in,
                         tokens_out: *tokens_out,

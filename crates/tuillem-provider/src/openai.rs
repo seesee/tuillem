@@ -50,6 +50,7 @@ impl Provider for OpenAiProvider {
             "model": request.model,
             "messages": messages,
             "stream": true,
+            "stream_options": { "include_usage": true },
         });
 
         if let Some(max_tokens) = request.max_tokens {

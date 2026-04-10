@@ -464,6 +464,12 @@ impl Coordinator {
 
         let latency_ms = start.elapsed().as_millis() as i64;
 
+        // Fallback: estimate tokens from text length if provider didn't report usage
+        // Rough heuristic: ~4 chars per token for English text
+        if output_tokens == 0 && !full_text.is_empty() {
+            output_tokens = (full_text.len() as u64) / 4;
+        }
+
         if cancelled {
             // Store partial response if we got any text
             if !full_text.is_empty() {
