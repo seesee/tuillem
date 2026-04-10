@@ -440,21 +440,25 @@ impl App {
         // Scroll behavior for streaming and message events
         match event {
             Event::StreamStarted => {
-                // Jump to bottom to show user's message + throbber
-                let bottom = self
-                    .conversation
-                    .total_lines
-                    .saturating_sub(self.conversation.visible_height);
-                self.conversation.scroll_offset = bottom;
-                self.conversation.scroll_state =
-                    crate::conversation::ScrollState::Streaming { start_offset: bottom };
+                // Jump to bottom first, then enter streaming mode.
+                // FollowBottom ensures the next render snaps to the actual bottom
+                // with fresh total_lines. The first StreamDelta will transition
+                // to Streaming state with the correct start_offset.
+                self.conversation.scroll_to_bottom();
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
-                // Scroll logic handled in render() where total_lines is fresh
+                // On first delta, transition from FollowBottom to Streaming
+                // so the render freeze logic kicks in with correct start_offset
+                if matches!(self.conversation.scroll_state, crate::conversation::ScrollState::FollowBottom) {
+                    let start = self.conversation.total_lines
+                        .saturating_sub(self.conversation.visible_height);
+                    self.conversation.scroll_state =
+                        crate::conversation::ScrollState::Streaming { start_offset: start };
+                }
             }
             Event::StreamDone { .. } => {
-                // If still streaming state (short response), freeze where we are
-                if matches!(self.conversation.scroll_state, crate::conversation::ScrollState::Streaming { .. }) {
+                // Freeze when done (whether from Streaming or FollowBottom)
+                if !matches!(self.conversation.scroll_state, crate::conversation::ScrollState::Frozen) {
                     self.conversation.scroll_state = crate::conversation::ScrollState::Frozen;
                 }
             }
