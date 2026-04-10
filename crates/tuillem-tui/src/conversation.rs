@@ -542,12 +542,23 @@ impl Conversation {
             self.total_lines = lines.len() as u16;
         }
 
-        // Apply reading highlight to the estimated reading line
+        // Apply reading highlight near the bottom of the viewport
         if self.reading_mode.active && self.reading_mode.highlight && !self.reading_mode.paused {
-            let highlight_line_idx = self.scroll_offset as usize + self.reading_mode.reading_line as usize;
+            let vh = self.visible_height as usize;
+            let sl = self.reading_mode.scroll_lines as usize;
+
+            // Base offset from bottom: scroll_lines up from the bottom edge,
+            // but cap at 50% of viewport so it doesn't go above midpoint
+            let base_from_bottom = sl.min(vh / 2);
+            let base_in_viewport = vh.saturating_sub(base_from_bottom).saturating_sub(1);
+
+            // reading_line progresses through the chunk (0..scroll_lines)
+            let progress = self.reading_mode.reading_line as usize;
+            let highlight_viewport_pos = base_in_viewport.saturating_sub(sl.saturating_sub(progress));
+
+            let highlight_line_idx = self.scroll_offset as usize + highlight_viewport_pos;
             if highlight_line_idx < lines.len() {
-                // Apply a subtle background to the reading line
-                let highlight_bg = theme.user_msg_bg; // reuse user msg bg as subtle highlight
+                let highlight_bg = theme.user_msg_bg;
                 let line = &mut lines[highlight_line_idx];
                 let new_spans: Vec<Span<'static>> = line.spans.iter().map(|span| {
                     Span::styled(span.content.to_string(), span.style.bg(highlight_bg))
