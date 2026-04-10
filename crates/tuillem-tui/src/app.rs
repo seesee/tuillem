@@ -415,30 +415,39 @@ impl App {
         match event {
             Event::StreamStarted => {
                 // Jump to bottom to show user's message + throbber
-                self.conversation.scroll_offset = self
+                let bottom = self
                     .conversation
                     .total_lines
                     .saturating_sub(self.conversation.visible_height);
+                self.conversation.scroll_offset = bottom;
                 self.conversation.auto_scroll = true;
+                // Remember where streaming starts so we know when to freeze
+                self.conversation.stream_start_offset = bottom;
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
-                // While streaming with auto_scroll, keep viewport at bottom.
-                // When content exceeds viewport height, stop auto_scroll so
-                // the user sees the top of the response.
                 if self.conversation.auto_scroll {
                     let max_offset = self
                         .conversation
                         .total_lines
                         .saturating_sub(self.conversation.visible_height);
-                    if self.conversation.scroll_offset < max_offset
-                        && self.conversation.total_lines > self.conversation.visible_height
-                    {
+                    // Has the response grown past one full viewport from where it started?
+                    let one_viewport_past = self.conversation.stream_start_offset
+                        .saturating_add(self.conversation.visible_height);
+                    if max_offset > one_viewport_past {
+                        // Freeze viewport so user sees top of response
+                        self.conversation.scroll_offset = self.conversation.stream_start_offset;
                         self.conversation.auto_scroll = false;
+                    } else {
+                        // Still filling first viewport — follow the bottom
+                        self.conversation.scroll_offset = max_offset;
                     }
                 }
             }
             Event::StreamDone { .. } => {
-                // Nothing special — content is complete
+                // Stop auto-scrolling if still active (short response)
+                if self.conversation.auto_scroll {
+                    self.conversation.auto_scroll = false;
+                }
             }
             Event::MessagesLoaded { .. } | Event::ResponseError { .. } => {
                 self.conversation.scroll_to_bottom();

@@ -21,6 +21,7 @@ pub struct Conversation {
     pub highlight_line: Option<u16>,       // absolute line index to highlight
     pub highlight_set_at: Option<std::time::Instant>, // when highlight was set
     pub advance_lines: u16,                // how many lines Enter advances (from config)
+    pub stream_start_offset: u16,          // scroll offset when streaming began
 }
 
 impl Conversation {
@@ -34,6 +35,7 @@ impl Conversation {
             highlight_line: None,
             highlight_set_at: None,
             advance_lines: 5,
+            stream_start_offset: 0,
         }
     }
 
@@ -417,6 +419,24 @@ impl Conversation {
             .scroll((self.scroll_offset, 0));
 
         frame.render_widget(paragraph, area);
+
+        // "More content" indicator at bottom-right when not at the end
+        let max_offset = self.total_lines.saturating_sub(self.visible_height);
+        if self.scroll_offset < max_offset && self.total_lines > self.visible_height {
+            let indicator = " ... ";
+            let x = area.x + area.width.saturating_sub(indicator.len() as u16 + 1);
+            let y = area.y + area.height.saturating_sub(1);
+            if y >= area.y && x >= area.x {
+                let indicator_area = Rect::new(x, y, indicator.len() as u16, 1);
+                frame.render_widget(
+                    Paragraph::new(Span::styled(
+                        indicator,
+                        Style::default().fg(theme.thinking_fg).bg(theme.bg),
+                    )),
+                    indicator_area,
+                );
+            }
+        }
     }
 
     pub fn scroll_up(&mut self, amount: u16) {
