@@ -267,8 +267,10 @@ impl Default for Config {
 
 impl Config {
     /// Parse a YAML string into a `Config`, then validate it.
+    /// Expands `${VAR}` patterns from environment variables before parsing.
     pub fn from_yaml(yaml: &str) -> Result<Config, ConfigError> {
-        let config: Config = serde_yaml::from_str(yaml)?;
+        let expanded = expand_env_vars(yaml);
+        let config: Config = serde_yaml::from_str(&expanded)?;
         config.validate()?;
         Ok(config)
     }
@@ -324,6 +326,56 @@ pub fn version() -> &'static str {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+/// Expand `${VAR}` and `${VAR:-default}` patterns from environment variables.
+/// Leaves the pattern as-is if the variable is not set and no default is given.
+fn expand_env_vars(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '$' && chars.peek() == Some(&'{') {
+            chars.next(); // consume '{'
+            let mut var_expr = String::new();
+            let mut found_close = false;
+            for ch in chars.by_ref() {
+                if ch == '}' {
+                    found_close = true;
+                    break;
+                }
+                var_expr.push(ch);
+            }
+            if found_close {
+                // Check for default: ${VAR:-default}
+                let (var_name, default_val) = if let Some(pos) = var_expr.find(":-") {
+                    (&var_expr[..pos], Some(&var_expr[pos + 2..]))
+                } else {
+                    (var_expr.as_str(), None)
+                };
+
+                match std::env::var(var_name) {
+                    Ok(val) if !val.is_empty() => result.push_str(&val),
+                    _ => {
+                        if let Some(def) = default_val {
+                            result.push_str(def);
+                        } else {
+                            // Leave unexpanded so the user sees it's not set
+                            result.push_str(&format!("${{{}}}", var_expr));
+                        }
+                    }
+                }
+            } else {
+                // Unclosed ${, write it literally
+                result.push('$');
+                result.push('{');
+                result.push_str(&var_expr);
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
 
 #[cfg(test)]
 mod tests {
@@ -458,5 +510,44 @@ providers:
         assert_eq!(config.providers.len(), 1);
         assert_eq!(config.providers[0].provider_type, ProviderType::Ollama);
         assert!(config.providers[0].api_key.is_none());
+    }
+
+    #[test]
+    fn test_env_var_expansion() {
+        // SAFETY: test runs single-threaded
+        unsafe { std::env::set_var("TUILLEM_TEST_KEY", "sk-test-12345") };
+        let result = expand_env_vars("api_key: ${TUILLEM_TEST_KEY}");
+        assert_eq!(result, "api_key: sk-test-12345");
+        unsafe { std::env::remove_var("TUILLEM_TEST_KEY") };
+    }
+
+    #[test]
+    fn test_env_var_default() {
+        unsafe { std::env::remove_var("TUILLEM_UNSET_VAR") };
+        let result = expand_env_vars("key: ${TUILLEM_UNSET_VAR:-fallback_value}");
+        assert_eq!(result, "key: fallback_value");
+    }
+
+    #[test]
+    fn test_env_var_unset_no_default() {
+        unsafe { std::env::remove_var("TUILLEM_MISSING") };
+        let result = expand_env_vars("key: ${TUILLEM_MISSING}");
+        assert_eq!(result, "key: ${TUILLEM_MISSING}");
+    }
+
+    #[test]
+    fn test_env_var_in_config() {
+        unsafe { std::env::set_var("TUILLEM_TEST_API", "sk-ant-real-key") };
+        let yaml = r#"
+providers:
+  - name: anthropic
+    provider_type: anthropic
+    api_key: "${TUILLEM_TEST_API}"
+    models:
+      - claude-sonnet-4-20250514
+"#;
+        let config = Config::from_yaml(yaml).unwrap();
+        assert_eq!(config.providers[0].api_key.as_deref(), Some("sk-ant-real-key"));
+        unsafe { std::env::remove_var("TUILLEM_TEST_API") };
     }
 }
