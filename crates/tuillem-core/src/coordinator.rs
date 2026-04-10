@@ -633,16 +633,12 @@ impl Coordinator {
         debug!("Auto-renaming session, requesting title from model");
         match provider.send(summary_request).await {
             Ok(mut stream) => {
-                let mut title = String::new();
+                let mut text = String::new();
+                let mut thinking = String::new();
                 while let Some(result) = stream.next().await {
                     match result {
-                        Ok(StreamDelta::Text(t)) => title.push_str(&t),
-                        // Some models put response in thinking deltas
-                        Ok(StreamDelta::Thinking(t)) => {
-                            if title.is_empty() {
-                                title.push_str(&t);
-                            }
-                        }
+                        Ok(StreamDelta::Text(t)) => text.push_str(&t),
+                        Ok(StreamDelta::Thinking(t)) => thinking.push_str(&t),
                         Ok(StreamDelta::Done) => break,
                         Err(e) => {
                             debug!("Auto-rename stream error: {e}");
@@ -651,16 +647,36 @@ impl Coordinator {
                         _ => {}
                     }
                 }
-                // Clean up the title: strip quotes, markdown, newlines
-                let title = title
+
+                // Use text if available, otherwise try last line of thinking
+                // (thinking models often put reasoning first, answer last)
+                let raw_title = if !text.trim().is_empty() {
+                    text
+                } else if !thinking.trim().is_empty() {
+                    // Take the last non-empty line of thinking as the title
+                    thinking
+                        .lines()
+                        .rev()
+                        .find(|l| !l.trim().is_empty())
+                        .unwrap_or("")
+                        .to_string()
+                } else {
+                    String::new()
+                };
+
+                // Clean up: strip quotes, markdown, newlines
+                let title = raw_title
                     .trim()
                     .trim_matches('"')
                     .trim_matches('\'')
-                    .trim_matches('*')
-                    .trim_matches('#')
+                    .trim_matches('`')
+                    .trim_start_matches('#')
+                    .trim_start_matches('*')
+                    .trim_end_matches('*')
                     .replace('\n', " ")
                     .trim()
                     .to_string();
+
                 if !title.is_empty() && title.chars().count() < 80 {
                     debug!("Auto-rename: '{}'", title);
                     if self.db.update_session_title(session_id, &title).is_ok() {
@@ -671,11 +687,33 @@ impl Coordinator {
                         self.send_sessions_loaded(event_tx);
                     }
                 } else {
-                    debug!("Auto-rename: got unusable title: '{}'", title);
+                    // Fallback: use truncated first user message as title
+                    debug!("Auto-rename: model returned unusable title '{}', using fallback", title);
+                    let fallback = truncate_for_title(user_content);
+                    if fallback != session.title {
+                        if self.db.update_session_title(session_id, &fallback).is_ok() {
+                            let _ = event_tx.send(Event::SessionRenamed {
+                                id: session_id.to_string(),
+                                title: fallback,
+                            });
+                            self.send_sessions_loaded(event_tx);
+                        }
+                    }
                 }
             }
             Err(e) => {
                 debug!("Auto-rename request failed: {e}");
+                // Fallback on error too
+                let fallback = truncate_for_title(user_content);
+                if fallback != session.title {
+                    if self.db.update_session_title(session_id, &fallback).is_ok() {
+                        let _ = event_tx.send(Event::SessionRenamed {
+                            id: session_id.to_string(),
+                            title: fallback,
+                        });
+                        self.send_sessions_loaded(event_tx);
+                    }
+                }
             }
         }
     }
