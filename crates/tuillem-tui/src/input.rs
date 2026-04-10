@@ -184,8 +184,6 @@ fn compute_cursor_pos(text: &str, byte_pos: usize, wrap_width: usize) -> (usize,
     // Process line by line (hard breaks from \n)
     for (line_idx, line) in text_before.split('\n').enumerate() {
         if line_idx > 0 {
-            // Each \n moves to next line
-            x = 0;
             y += 1;
         }
 
