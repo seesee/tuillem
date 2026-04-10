@@ -111,22 +111,22 @@ impl MdRenderer {
                     lines.push(Line::from(""));
                 }
                 MdElement::List(items) => {
+                    let prefix = "   • ";
+                    let indent = "     "; // same width as prefix for continuation
                     for item in items {
-                        let mut spans = vec![Span::raw("   • ")];
-                        spans.extend(self.inline_to_spans(&item.content));
-                        lines.push(Line::from(spans));
+                        self.render_list_item(&mut lines, prefix, indent, &item.content);
                     }
                     lines.push(Line::from(""));
                 }
                 MdElement::OrderedList(items) => {
-                    // Right-align numbers so 1-9 line up with 10+
                     let max_digits = format!("{}", items.len()).len();
+                    // Indent width = 2 spaces + max_digits + ". " = 2 + max_digits + 2
+                    let indent_width = 2 + max_digits + 2;
+                    let indent: String = " ".repeat(indent_width);
                     for (idx, item) in items.iter().enumerate() {
                         let num = idx + 1;
                         let prefix = format!("  {:>width$}. ", num, width = max_digits);
-                        let mut spans = vec![Span::raw(prefix)];
-                        spans.extend(self.inline_to_spans(&item.content));
-                        lines.push(Line::from(spans));
+                        self.render_list_item(&mut lines, &prefix, &indent, &item.content);
                     }
                     lines.push(Line::from(""));
                 }
@@ -216,6 +216,44 @@ impl MdRenderer {
             build_border("└", "┴", "┘", &widths),
             border_style,
         )));
+    }
+
+    /// Render a list item with word-wrapping, indenting continuation lines.
+    fn render_list_item(
+        &self,
+        lines: &mut Vec<Line<'static>>,
+        prefix: &str,
+        indent: &str,
+        content: &[InlineElement],
+    ) {
+        // Flatten inline content to plain text for wrapping
+        let text = inlines_to_plain_text(content);
+        let prefix_width = crate::width::terminal_width(prefix);
+
+        if self.max_width > 0 {
+            let wrap_width = self.max_width.saturating_sub(prefix_width);
+            let wrapped = crate::width::wrap_to_width(&text, wrap_width);
+            for (i, line_text) in wrapped.iter().enumerate() {
+                if i == 0 {
+                    // First line gets the prefix (bullet or number)
+                    lines.push(Line::from(vec![
+                        Span::raw(prefix.to_string()),
+                        Span::raw(line_text.clone()),
+                    ]));
+                } else {
+                    // Continuation lines get the indent
+                    lines.push(Line::from(vec![
+                        Span::raw(indent.to_string()),
+                        Span::raw(line_text.clone()),
+                    ]));
+                }
+            }
+        } else {
+            // No max_width — single line
+            let mut spans = vec![Span::raw(prefix.to_string())];
+            spans.extend(self.inline_to_spans(content));
+            lines.push(Line::from(spans));
+        }
     }
 
     fn inline_to_spans(&self, inlines: &[InlineElement]) -> Vec<Span<'static>> {
