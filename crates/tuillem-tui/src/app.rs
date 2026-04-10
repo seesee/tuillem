@@ -1073,6 +1073,12 @@ impl App {
             KeyCode::End => {
                 self.input.move_end();
             }
+            KeyCode::PageUp => {
+                self.conversation.scroll_up(self.conversation.visible_height.saturating_sub(2));
+            }
+            KeyCode::PageDown => {
+                self.conversation.scroll_down(self.conversation.visible_height.saturating_sub(2));
+            }
             _ => {}
         }
     }
