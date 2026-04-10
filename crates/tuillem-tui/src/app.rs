@@ -1029,6 +1029,7 @@ impl App {
                             // Normal message send
                             self.state.error = None;
                             self.state.status_message = None;
+                            self.conversation.scroll_to_bottom();
                             self.input_history.push(content.clone());
                             self.history_index = None;
                             debug!(
@@ -1311,6 +1312,9 @@ impl App {
     }
 
     fn execute_command_result(&mut self, result: commands::CommandResult) {
+        // Jump to bottom when executing commands
+        self.conversation.scroll_to_bottom();
+
         // Show help overlay
         if result.show_help {
             self.commands_help_scroll = 0;
