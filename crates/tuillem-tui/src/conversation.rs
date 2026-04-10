@@ -518,9 +518,17 @@ impl Conversation {
         self.scroll_state = ScrollState::FollowBottom;
     }
 
-    /// Clear the render cache (e.g. when messages are reloaded).
+    /// Clear the render cache entirely (e.g. on session switch).
     pub fn clear_render_cache(&mut self) {
         self.render_cache.clear();
+    }
+
+    /// Remove cache entries for messages no longer in the list.
+    /// Keeps existing valid entries for performance.
+    pub fn prune_render_cache(&mut self, messages: &[tuillem_core::actions::MessageView]) {
+        let valid_ids: HashSet<&str> = messages.iter().map(|m| m.id.as_str()).collect();
+        self.render_cache
+            .retain(|(id, _), _| valid_ids.contains(id.as_str()));
     }
 
     pub fn toggle_thinking(&mut self, message_index: usize) {
