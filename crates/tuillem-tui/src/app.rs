@@ -531,6 +531,18 @@ impl App {
                     self.conversation.stop_reading();
                     return;
                 }
+                KeyCode::Right | KeyCode::Char('l') => {
+                    // Increase WPM by 25
+                    self.reading_wpm = self.reading_wpm.saturating_add(25).min(1000);
+                    self.conversation.reading_mode.update_wpm(self.reading_wpm);
+                    return;
+                }
+                KeyCode::Left | KeyCode::Char('h') => {
+                    // Decrease WPM by 25
+                    self.reading_wpm = self.reading_wpm.saturating_sub(25).max(25);
+                    self.conversation.reading_mode.update_wpm(self.reading_wpm);
+                    return;
+                }
                 _ => {}
             }
         }

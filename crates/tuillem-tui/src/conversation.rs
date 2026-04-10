@@ -18,6 +18,21 @@ pub struct ReadingMode {
     pub last_scroll: std::time::Instant,
     pub lines_per_second: f64,
     pub target_offset: u16,
+    pub wpm: u16,
+    pub content_width: u16,
+}
+
+impl ReadingMode {
+    /// Update WPM and recalculate scroll speed.
+    pub fn update_wpm(&mut self, wpm: u16) {
+        self.wpm = wpm;
+        let words_per_line = (self.content_width as f64) / 5.0;
+        self.lines_per_second = if words_per_line > 0.0 {
+            (wpm as f64) / 60.0 / words_per_line
+        } else {
+            0.5
+        };
+    }
 }
 
 impl Default for ReadingMode {
@@ -28,6 +43,8 @@ impl Default for ReadingMode {
             last_scroll: std::time::Instant::now(),
             lines_per_second: 0.0,
             target_offset: 0,
+            wpm: 250,
+            content_width: 80,
         }
     }
 }
@@ -69,6 +86,8 @@ impl Conversation {
                 last_scroll: std::time::Instant::now(),
                 lines_per_second,
                 target_offset: target,
+                wpm,
+                content_width,
             };
         }
     }
@@ -463,15 +482,15 @@ impl Conversation {
         if self.reading_mode.active {
             let indicator = if self.reading_mode.paused {
                 format!(
-                    "{}\u{23f8} Paused [Enter:resume G:end]",
-                    margin_str
+                    "{}\u{23f8} Paused {}wpm [\u{2190}\u{2192}:speed Enter:resume G:end]",
+                    margin_str,
+                    self.reading_mode.wpm
                 )
             } else {
                 format!(
-                    "{}\u{25b6} Reading {}wpm [Space:nudge Enter:pause G:end]",
+                    "{}\u{25b6} Reading {}wpm [Space:nudge \u{2190}\u{2192}:speed Enter:pause G:end]",
                     margin_str,
-                    // Reverse-calculate WPM from lines_per_second for display
-                    (self.reading_mode.lines_per_second * 60.0 * (area.width as f64 / 5.0)) as u16
+                    self.reading_mode.wpm
                 )
             };
             let indicator_style = if self.reading_mode.paused {
