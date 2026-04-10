@@ -11,17 +11,27 @@ use tuillem_core::actions::MessageView;
 
 use crate::theme::Theme;
 
+/// Scroll state machine
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScrollState {
+    /// Following the bottom (new session load, short content)
+    FollowBottom,
+    /// Streaming: follow bottom until one viewport of response, then freeze
+    Streaming { start_offset: u16 },
+    /// Frozen: user reads at their own pace (Enter to advance)
+    Frozen,
+}
+
 #[derive(Debug, Clone)]
 pub struct Conversation {
     pub scroll_offset: u16,
     pub expanded_thinking: HashSet<usize>,
     pub total_lines: u16,
     pub visible_height: u16,
-    pub auto_scroll: bool,
-    pub highlight_line: Option<u16>,       // absolute line index to highlight
-    pub highlight_set_at: Option<std::time::Instant>, // when highlight was set
-    pub advance_lines: u16,                // how many lines Enter advances (from config)
-    pub stream_start_offset: u16,          // scroll offset when streaming began
+    pub scroll_state: ScrollState,
+    pub highlight_line: Option<u16>,
+    pub highlight_set_at: Option<std::time::Instant>,
+    pub advance_lines: u16,
 }
 
 impl Conversation {
@@ -31,11 +41,10 @@ impl Conversation {
             expanded_thinking: HashSet::new(),
             total_lines: 0,
             visible_height: 0,
-            auto_scroll: true,
+            scroll_state: ScrollState::FollowBottom,
             highlight_line: None,
             highlight_set_at: None,
             advance_lines: 5,
-            stream_start_offset: 0,
         }
     }
 
@@ -379,17 +388,25 @@ impl Conversation {
             }
         }
 
-        if self.auto_scroll {
-            let max_offset = self.total_lines.saturating_sub(self.visible_height);
-            // Check if response has grown past one full viewport from start
-            let one_viewport_past = self.stream_start_offset.saturating_add(self.visible_height);
-            if max_offset > one_viewport_past {
-                // Freeze: park at start so user sees top of response
-                self.scroll_offset = self.stream_start_offset;
-                self.auto_scroll = false;
-            } else {
-                // Still filling first viewport — follow bottom
+        // Scroll state machine
+        let max_offset = self.total_lines.saturating_sub(self.visible_height);
+        match self.scroll_state {
+            ScrollState::FollowBottom => {
                 self.scroll_offset = max_offset;
+            }
+            ScrollState::Streaming { start_offset } => {
+                let one_viewport_past = start_offset.saturating_add(self.visible_height);
+                if max_offset > one_viewport_past {
+                    // Response filled a viewport — freeze here
+                    self.scroll_offset = start_offset;
+                    self.scroll_state = ScrollState::Frozen;
+                } else {
+                    // Still filling — follow bottom
+                    self.scroll_offset = max_offset;
+                }
+            }
+            ScrollState::Frozen => {
+                // Don't touch scroll_offset — user controls it
             }
         }
 
@@ -450,19 +467,25 @@ impl Conversation {
 
     pub fn scroll_up(&mut self, amount: u16) {
         self.scroll_offset = self.scroll_offset.saturating_sub(amount);
-        self.auto_scroll = false;
+        // Manual scroll freezes
+        if !matches!(self.scroll_state, ScrollState::FollowBottom) {
+            self.scroll_state = ScrollState::Frozen;
+        }
     }
 
     pub fn scroll_down(&mut self, amount: u16) {
-        self.scroll_offset = self.scroll_offset.saturating_add(amount);
-        // Re-enable auto-scroll if we're at or near the bottom
-        if self.scroll_offset >= self.total_lines.saturating_sub(self.visible_height) {
-            self.auto_scroll = true;
+        let max_offset = self.total_lines.saturating_sub(self.visible_height);
+        self.scroll_offset = self.scroll_offset.saturating_add(amount).min(max_offset);
+        // Manual scroll freezes (don't jump back)
+        if !matches!(self.scroll_state, ScrollState::FollowBottom) {
+            self.scroll_state = ScrollState::Frozen;
         }
     }
 
     pub fn scroll_to_bottom(&mut self) {
-        self.auto_scroll = true;
+        let max_offset = self.total_lines.saturating_sub(self.visible_height);
+        self.scroll_offset = max_offset;
+        self.scroll_state = ScrollState::FollowBottom;
     }
 
     pub fn toggle_thinking(&mut self, message_index: usize) {

@@ -420,17 +420,16 @@ impl App {
                     .total_lines
                     .saturating_sub(self.conversation.visible_height);
                 self.conversation.scroll_offset = bottom;
-                self.conversation.auto_scroll = true;
-                // Remember where streaming starts so we know when to freeze
-                self.conversation.stream_start_offset = bottom;
+                self.conversation.scroll_state =
+                    crate::conversation::ScrollState::Streaming { start_offset: bottom };
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
                 // Scroll logic handled in render() where total_lines is fresh
             }
             Event::StreamDone { .. } => {
-                // Stop auto-scrolling if still active (short response)
-                if self.conversation.auto_scroll {
-                    self.conversation.auto_scroll = false;
+                // If still streaming state (short response), freeze where we are
+                if matches!(self.conversation.scroll_state, crate::conversation::ScrollState::Streaming { .. }) {
+                    self.conversation.scroll_state = crate::conversation::ScrollState::Frozen;
                 }
             }
             Event::MessagesLoaded { .. } | Event::ResponseError { .. } => {
@@ -905,23 +904,20 @@ impl App {
             KeyCode::Enter => {
                 if key.modifiers.contains(KeyModifiers::SHIFT) {
                     self.input.insert_char('\n');
-                } else if self.input.content.trim().is_empty() && !self.state.is_streaming {
-                    // Empty input + not streaming: advance scroll
+                } else if self.input.content.trim().is_empty() {
+                    // Empty input: advance scroll (works during and after streaming)
                     let advance = self.scroll_lines;
-                    self.conversation.scroll_offset = self
-                        .conversation
-                        .scroll_offset
-                        .saturating_add(advance);
-                    // Clamp to max
                     let max_offset = self
                         .conversation
                         .total_lines
                         .saturating_sub(self.conversation.visible_height);
-                    self.conversation.scroll_offset = self.conversation.scroll_offset.min(max_offset);
-                    // Re-enable auto_scroll if at bottom
-                    if self.conversation.scroll_offset >= max_offset {
-                        self.conversation.auto_scroll = true;
-                    }
+                    self.conversation.scroll_offset = self
+                        .conversation
+                        .scroll_offset
+                        .saturating_add(advance)
+                        .min(max_offset);
+                    // Freeze so render doesn't override
+                    self.conversation.scroll_state = crate::conversation::ScrollState::Frozen;
                     // Set highlight on the first line of newly visible content
                     self.conversation.highlight_line = Some(self.conversation.scroll_offset);
                     self.conversation.highlight_set_at = Some(std::time::Instant::now());
