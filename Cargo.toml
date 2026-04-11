@@ -34,7 +34,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 name = "tuillem"
 version.workspace = true
 edition.workspace = true
-description = "A 3-pane terminal AI chat client with seamless connectivity to local and remote LLM endpoints"
+description = "A 3-pane terminal AI chat client with easy connectivity to local and remote LLM endpoints"
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true

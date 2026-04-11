@@ -1,6 +1,6 @@
 # tuillem
 
-A 3-pane terminal AI chat client with seamless connectivity to local and remote LLM endpoints. Switch between providers and models mid-conversation. Full markdown rendering with tables and syntax highlighting. SQLite-backed conversation history with full-text search. Configurable themes, adaptive scroll, slash commands, and a plugin framework for extensibility.
+A 3-pane terminal AI chat client with easy connectivity to local and remote LLM endpoints. Switch between providers and models mid-conversation. Full markdown rendering with tables and syntax highlighting. SQLite-backed conversation history with full-text search. Configurable themes, adaptive scroll, slash commands, and a plugin framework for extensibility.
 
 ## Features
 
