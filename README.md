@@ -1,6 +1,6 @@
 # tuillem
 
-A 3-pane terminal AI chat client with easy connectivity to local and remote LLM endpoints. Switch between providers and models mid-conversation. Full markdown rendering with tables and syntax highlighting. SQLite-backed conversation history with full-text search. Configurable themes, adaptive scroll, slash commands, and a plugin framework for extensibility.
+A 3-pane terminal AI chat client with easy connectivity to local and remote LLM endpoints. Switch between providers and models mid-conversation. Full markdown rendering with tables and syntax highlighting. SQLite-backed conversation history with full-text search. Configurable themes, slash commands, and a plugin framework for extensibility.
 
 ## Features
 
@@ -9,19 +9,44 @@ A 3-pane terminal AI chat client with easy connectivity to local and remote LLM 
 - **Terminal markdown rendering** -- headings, bold/italic, code blocks with syntax highlighting, tables with column reflow, lists with wrapped indentation, blockquotes
 - **SQLite storage** -- all conversations, thinking blocks, tool calls, and metadata persisted locally with FTS5 full-text search
 - **10 built-in themes** -- dark, light, Dracula, Nord, Gruvbox, Tokyo Night, Solarized (dark + light), GitHub Light, Rose Pine Dawn. Custom themes via YAML
-- **Slash commands** -- `/set model`, `/tag`, `/rename`, `/export`, `/stats`, `/help` and more
-- **Reading scroll** -- viewport freezes after one screenful of response; Enter advances with line highlighting
+- **Colour mode auto-detection** -- graceful degradation from truecolor to 256-colour to basic 16-colour terminals
+- **Slash commands** -- `/set model`, `/tag`, `/rename`, `/new <prompt>`, `/export`, `/stats`, `/help` and more
 - **Command palette** (Ctrl+K) -- quick access to common actions
-- **Settings panel** (Ctrl+S) -- edit all config in-app, changes apply instantly
-- **Collapsible sidebar** (Ctrl+L) -- date-grouped conversations with search and preview
+- **Settings panel** (Ctrl+S) -- edit all config in-app, changes apply instantly. Open raw YAML in your editor with validation
+- **Collapsible sidebar** (Ctrl+L) -- date-grouped conversations with full-text search and live preview
 - **External editor** (Ctrl+E) -- compose long prompts in your preferred editor
 - **Clipboard copy** (Ctrl+Y / Ctrl+B) -- copy responses or individual code blocks
 - **Plugin system** -- external process tools via stdin/stdout JSON protocol
-- **Stats for nerds** -- token counts, tokens/sec, context usage
+- **Stats for nerds** -- token counts, tokens/sec, context usage percentage
 - **First-run wizard** -- interactive setup creates your config on first launch
 - **Environment variable expansion** -- `${VAR}` and `${VAR:-default}` in YAML config
 
 ## Installation
+
+### Pre-built binaries
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/seesee/tuillem/releases):
+
+| Platform | Architecture | Download |
+|----------|-------------|----------|
+| Linux | x86_64 | `tuillem-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux | ARM64 (aarch64) | `tuillem-aarch64-unknown-linux-gnu.tar.gz` |
+| Linux | ARMv7 (Raspberry Pi) | `tuillem-armv7-unknown-linux-gnueabihf.tar.gz` |
+| macOS | Intel (x86_64) | `tuillem-x86_64-apple-darwin.tar.gz` |
+| macOS | Apple Silicon (M1/M2/M3) | `tuillem-aarch64-apple-darwin.tar.gz` |
+| Windows | x86_64 | `tuillem-x86_64-pc-windows-msvc.zip` |
+
+Extract and place the binary in your `$PATH`:
+
+```bash
+# Linux / macOS
+tar xzf tuillem-*.tar.gz
+sudo mv tuillem /usr/local/bin/
+
+# Or without sudo
+mkdir -p ~/.local/bin
+mv tuillem ~/.local/bin/
+```
 
 ### From crates.io
 
@@ -53,7 +78,10 @@ Step 1/5: Provider Setup
 Choose [1-5]:
 ```
 
-Or create `~/.config/tuillem/config.yaml` manually (macOS: `~/Library/Application Support/com.tuillem.tuillem/config.yaml`):
+Or create a config file manually:
+
+- **Linux**: `~/.config/tuillem/config.yaml`
+- **macOS**: `~/Library/Application Support/com.tuillem.tuillem/config.yaml`
 
 ```yaml
 providers:
@@ -111,7 +139,7 @@ tuillem
 | `PgUp` / `PgDn` | Scroll conversation (works from any pane) |
 | `Esc` | Cancel streaming / close overlay / return to input |
 
-### Sidebar (when focused)
+### Sidebar
 
 | Key | Action |
 |-----|--------|
@@ -120,6 +148,7 @@ tuillem
 | `/` | Search conversations (title, tags, and content) |
 | `d` | Delete session (y/n confirm) |
 | `r` | Rename session |
+| `PgUp` / `PgDn` | Scroll conversation while browsing |
 
 ### Slash commands
 
@@ -128,16 +157,17 @@ Type in the message box:
 | Command | Action |
 |---------|--------|
 | `/help` | Show all commands |
+| `/new [prompt]` | New conversation, optionally with an initial message |
 | `/set think` / `/set nothink` | Toggle thinking mode |
 | `/set model <name>` | Switch model (fuzzy match) |
 | `/set provider <name>` | Switch provider |
 | `/set system <prompt>` | Set system prompt |
 | `/tag <name>` | Tag conversation |
 | `/rename <title>` | Rename conversation |
-| `/new` | New conversation |
 | `/export` | Save transcript to file |
 | `/model` | Show current model |
 | `/stats` | Show session stats |
+| `/clear` | Clear conversation (with confirmation) |
 
 ## Configuration
 
@@ -151,7 +181,16 @@ Database location:
 
 Environment variables are expanded in config values: `${VAR}` or `${VAR:-default}`.
 
-See `config.example.yaml` for all available options.
+### Colour support
+
+tuillem auto-detects your terminal's colour capability. If colours look wrong (common on some SSH sessions or Raspberry Pi terminals), set the mode explicitly:
+
+```yaml
+ui:
+  color_mode: "256"    # Options: auto, truecolor, 256, basic
+```
+
+See `config.example.yaml` for all available options including themes, layout, scroll settings, and more.
 
 ## Architecture
 
@@ -171,9 +210,9 @@ Communication between layers uses typed `tokio::mpsc` channels. The coordinator 
 
 ## Requirements
 
-- Rust 2024 edition (1.85+)
-- A terminal with 256-color or truecolor support
-- A Nerd Font is recommended (for rounded message bubbles) but not required -- set `ui.nerd_fonts: false` in config
+- A terminal with 256-colour or truecolor support (most modern terminals)
+- A Nerd Font is recommended for rounded message bubbles but not required -- set `ui.nerd_fonts: false` in config
+- Rust 1.85+ if building from source
 
 ## License
 
