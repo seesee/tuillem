@@ -264,13 +264,14 @@ impl Sidebar {
                     tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
 
                 let preview_style = Style::default().fg(theme.thinking_fg);
-                let preview_spans =
-                    highlight_matches(&format!(" {}", preview_truncated), search_q, preview_style, hl_style);
+                let preview_spans = highlight_matches(
+                    &format!(" {}", preview_truncated),
+                    search_q,
+                    preview_style,
+                    hl_style,
+                );
 
-                (
-                    Line::from(title_spans),
-                    Line::from(preview_spans),
-                )
+                (Line::from(title_spans), Line::from(preview_spans))
             };
 
             let mut item_lines = vec![title_line, preview_line];

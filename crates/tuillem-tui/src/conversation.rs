@@ -628,10 +628,7 @@ fn highlight_spans(
             if start > last {
                 result.push(Span::styled(text[last..start].to_string(), span.style));
             }
-            result.push(Span::styled(
-                text[start..end].to_string(),
-                highlight_style,
-            ));
+            result.push(Span::styled(text[start..end].to_string(), highlight_style));
             last = end;
         }
         if last < text.len() {
@@ -639,11 +636,7 @@ fn highlight_spans(
         }
     }
 
-    if found {
-        Some(result)
-    } else {
-        None
-    }
+    if found { Some(result) } else { None }
 }
 
 impl Default for Conversation {

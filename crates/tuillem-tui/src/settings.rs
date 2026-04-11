@@ -618,7 +618,6 @@ impl SettingsPanel {
                     value_style,
                 ),
             ]));
-
         }
 
         let dirty_marker = if self.dirty { " [modified] " } else { "" };
