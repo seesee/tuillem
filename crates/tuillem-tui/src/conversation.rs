@@ -204,37 +204,65 @@ impl Conversation {
                             .map(|l| tuillem_markdown::width::terminal_width(l))
                             .max()
                             .unwrap_or(0);
-                        let bubble_w = max_line_w + 4; // 2 space padding each side
                         let text_style = Style::default().fg(theme.fg).bg(theme.user_msg_bg);
-                        // Top edge: ▄ chars with fg=bubble_bg (draws coloured bottom-half blocks)
-                        let top_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
-                        // Bottom edge: ▀ chars with fg=bubble_bg (draws coloured top-half blocks)
-                        let bottom_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
+                        // Powerline rounded separators for pill-shaped bubble
+                        // \u{E0B6} = left rounded (opening cap)
+                        // \u{E0B4} = right rounded (closing cap)
+                        let cap_open = "\u{E0B6}";
+                        let cap_close = "\u{E0B4}";
+                        let cap_style_open = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
+                        let cap_style_close = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
 
-                        // Top rounded edge
-                        msg_lines.push(
-                            Line::from(Span::styled(
-                                "▄".repeat(bubble_w),
-                                top_style,
-                            ))
-                            .alignment(Alignment::Right),
-                        );
-                        // Message lines with solid background fill
-                        for ml in &wrapped_lines {
-                            let padded = format!("  {:width$}  ", ml, width = max_line_w);
+                        // Each line gets its own pill shape with rounded caps
+                        // For multi-line: top line has caps, middle lines have full bg, bottom has caps
+                        if wrapped_lines.len() == 1 {
+                            // Single line: full pill
+                            let padded = format!("  {:width$}  ", wrapped_lines[0], width = max_line_w);
                             msg_lines.push(
-                                Line::from(Span::styled(padded, text_style))
+                                Line::from(vec![
+                                    Span::styled(cap_open, cap_style_open),
+                                    Span::styled(padded, text_style),
+                                    Span::styled(cap_close, cap_style_close),
+                                ])
+                                .alignment(Alignment::Right),
+                            );
+                        } else {
+                            // Multi-line bubble: top with caps, middle solid, bottom with caps
+                            let fill_w = max_line_w + 4; // match inner padding
+
+                            // Top line
+                            let padded = format!("  {:width$}  ", wrapped_lines[0], width = max_line_w);
+                            msg_lines.push(
+                                Line::from(vec![
+                                    Span::styled(cap_open, cap_style_open),
+                                    Span::styled(padded, text_style),
+                                    Span::styled(cap_close, cap_style_close),
+                                ])
+                                .alignment(Alignment::Right),
+                            );
+                            // Middle lines (full background, no caps)
+                            for ml in &wrapped_lines[1..wrapped_lines.len() - 1] {
+                                let padded = format!("  {:width$}   ", ml, width = max_line_w);
+                                msg_lines.push(
+                                    Line::from(Span::styled(
+                                        format!(" {}", padded),
+                                        text_style,
+                                    ))
                                     .alignment(Alignment::Right),
+                                );
+                            }
+                            // Bottom line
+                            let last = &wrapped_lines[wrapped_lines.len() - 1];
+                            let padded = format!("  {:width$}  ", last, width = max_line_w);
+                            msg_lines.push(
+                                Line::from(vec![
+                                    Span::styled(cap_open, cap_style_open),
+                                    Span::styled(padded, text_style),
+                                    Span::styled(cap_close, cap_style_close),
+                                ])
+                                .alignment(Alignment::Right),
                             );
                         }
-                        // Bottom rounded edge
-                        msg_lines.push(
-                            Line::from(Span::styled(
-                                "▀".repeat(bubble_w),
-                                bottom_style,
-                            ))
-                            .alignment(Alignment::Right),
-                        );
                     } else {
                         // Tight mode: original behavior
                         for text_line in content.lines() {
