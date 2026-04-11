@@ -43,7 +43,7 @@ impl Db {
     fn migrate(&self) -> Result<(), DbError> {
         let current_version = self.current_schema_version();
         if current_version < 1 {
-            let sql = include_str!("../../../migrations/001_initial.sql");
+            let sql = include_str!("../migrations/001_initial.sql");
             self.conn.execute_batch(sql)?;
         }
         Ok(())
