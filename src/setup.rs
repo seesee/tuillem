@@ -146,8 +146,19 @@ pub fn run_setup_wizard() -> Result<Config> {
     let config_path = Config::default_path();
     println!("Step 5/5: Review & Save");
     println!();
-    println!("  Provider:  {} ({})", provider_name, format!("{:?}", provider_type).to_lowercase());
-    println!("  Model:     {}", if default_model.is_empty() { "(none)" } else { &default_model });
+    println!(
+        "  Provider:  {} ({})",
+        provider_name,
+        format!("{:?}", provider_type).to_lowercase()
+    );
+    println!(
+        "  Model:     {}",
+        if default_model.is_empty() {
+            "(none)"
+        } else {
+            &default_model
+        }
+    );
     if !extra_models.is_empty() {
         println!("  Also:      {}", extra_models.join(", "));
     }
@@ -211,7 +222,9 @@ fn pause() -> Result<()> {
     print!("\n  Press Enter to continue...");
     io::stdout().flush().context("failed to flush stdout")?;
     let mut buf = String::new();
-    io::stdin().read_line(&mut buf).context("failed to read input")?;
+    io::stdin()
+        .read_line(&mut buf)
+        .context("failed to read input")?;
     Ok(())
 }
 

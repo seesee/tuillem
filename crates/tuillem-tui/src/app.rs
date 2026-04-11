@@ -966,16 +966,20 @@ impl App {
                 }
             }
             KeyCode::PageUp => {
-                self.conversation.scroll_up(self.conversation.visible_height.saturating_sub(2));
+                self.conversation
+                    .scroll_up(self.conversation.visible_height.saturating_sub(2));
             }
             KeyCode::PageDown => {
-                self.conversation.scroll_down(self.conversation.visible_height.saturating_sub(2));
+                self.conversation
+                    .scroll_down(self.conversation.visible_height.saturating_sub(2));
             }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.conversation.scroll_up(self.conversation.visible_height / 2);
+                self.conversation
+                    .scroll_up(self.conversation.visible_height / 2);
             }
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.conversation.scroll_down(self.conversation.visible_height / 2);
+                self.conversation
+                    .scroll_down(self.conversation.visible_height / 2);
             }
             KeyCode::Char('d') => {
                 // Start delete confirmation
@@ -1303,9 +1307,8 @@ impl App {
             }
             // Apply theme instantly (with colour degradation)
             let resolved = crate::theme::resolve_color_mode(&self.color_mode);
-            self.theme =
-                Theme::from_config(&self.config_theme, &self.config_themes)
-                    .adapt_to_color_mode(resolved);
+            self.theme = Theme::from_config(&self.config_theme, &self.config_themes)
+                .adapt_to_color_mode(resolved);
 
             // Write to config file
             self.write_config_file();
@@ -1683,8 +1686,8 @@ impl App {
         self.config_theme = config.theme.clone();
         self.color_mode = config.ui.color_mode.clone();
         let resolved = crate::theme::resolve_color_mode(&self.color_mode);
-        self.theme = Theme::from_config(&config.theme, &config.themes)
-            .adapt_to_color_mode(resolved);
+        self.theme =
+            Theme::from_config(&config.theme, &config.themes).adapt_to_color_mode(resolved);
 
         // Editor
         self.editor_command = config.editor.clone();

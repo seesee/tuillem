@@ -518,25 +518,53 @@ fn rgb_to_basic(color: Color) -> Color {
         // Map to basic hue based on dominant channel
         match (r >= g, r >= b, g >= b) {
             (true, true, true) if g as i16 - b as i16 > chroma / 3 => {
-                if bright { Color::LightYellow } else { Color::Yellow }
+                if bright {
+                    Color::LightYellow
+                } else {
+                    Color::Yellow
+                }
             }
             (true, true, _) => {
-                if bright { Color::LightRed } else { Color::Red }
+                if bright {
+                    Color::LightRed
+                } else {
+                    Color::Red
+                }
             }
             (false, _, true) if g as i16 - r as i16 > chroma / 3 => {
-                if bright { Color::LightGreen } else { Color::Green }
+                if bright {
+                    Color::LightGreen
+                } else {
+                    Color::Green
+                }
             }
             (false, _, true) => {
-                if bright { Color::LightCyan } else { Color::Cyan }
+                if bright {
+                    Color::LightCyan
+                } else {
+                    Color::Cyan
+                }
             }
             (_, false, false) if r as i16 - g as i16 > chroma / 3 => {
-                if bright { Color::LightMagenta } else { Color::Magenta }
+                if bright {
+                    Color::LightMagenta
+                } else {
+                    Color::Magenta
+                }
             }
             (_, false, false) => {
-                if bright { Color::LightBlue } else { Color::Blue }
+                if bright {
+                    Color::LightBlue
+                } else {
+                    Color::Blue
+                }
             }
             _ => {
-                if bright { Color::White } else { Color::Gray }
+                if bright {
+                    Color::White
+                } else {
+                    Color::Gray
+                }
             }
         }
     } else {
@@ -592,7 +620,10 @@ mod tests {
         // Mid grey → greyscale ramp
         let c = rgb_to_256(Color::Rgb(128, 128, 128));
         if let Color::Indexed(i) = c {
-            assert!((232..=255).contains(&i), "Expected greyscale index, got {i}");
+            assert!(
+                (232..=255).contains(&i),
+                "Expected greyscale index, got {i}"
+            );
         } else {
             panic!("Expected Color::Indexed");
         }
