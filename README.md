@@ -2,6 +2,15 @@
 
 A 3-pane terminal AI chat client with easy connectivity to local and remote LLM endpoints. Switch between providers and models mid-conversation. Full markdown rendering with tables and syntax highlighting. SQLite-backed conversation history with full-text search. Configurable themes, slash commands, and a plugin framework for extensibility.
 
+## Motivation
+
+My preferred interface has always been the CLI. I use tmux a lot. While there are a great many ways to talk with LLMs from the command line, I didn't find any that I particularly enjoyed using.
+Hence this little project that was written using Claude over a couple of sessions. This is about as M as a VP gets. It will contain bugs and I do not recommend installing it in any
+environment you care about. With that said, I'm tickled pink with how well this silly little sidequest has turned out.
+
+Sometimes, you just want a decent chat client in the terminal. This is my attempt at that. It has a fairly reasonable persistence model, which is something I wanted, and a whole bunch of
+shortcuts that I should probably document at some point. Primary inspiration is t3.chat which I also like using but can't talk with my local models and doesn't work that well in tmux. 
+
 ## Demo
 
 ![tuillem demo](demo.gif)
