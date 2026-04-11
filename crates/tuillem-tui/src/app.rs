@@ -506,7 +506,6 @@ impl App {
 
         // If sidebar rename or delete confirmation is active, route ALL keys there
         if self.sidebar_renaming.is_some() || self.sidebar_confirm_delete.is_some() {
-            debug!("Routing key {:?} to sidebar (rename/delete active)", key.code);
             self.handle_sidebar_key(key);
             return;
         }
@@ -853,7 +852,6 @@ impl App {
     fn handle_sidebar_key(&mut self, key: KeyEvent) {
         // Handle rename mode (inline text editing)
         if self.sidebar_renaming.is_some() {
-            debug!("Rename handler: key={:?}, buf={:?}", key.code, self.sidebar_renaming.as_ref().map(|(_, b)| b.as_str()));
             match key.code {
                 KeyCode::Esc => {
                     self.sidebar_renaming = None;
@@ -975,10 +973,10 @@ impl App {
                 }
             }
             KeyCode::Char('r') => {
-                // Start rename — start with existing title for editing
+                // Start rename — clear buffer so user types fresh title
                 let filtered = self.sidebar.filtered_sessions(&self.state.sessions);
                 if let Some(session) = filtered.get(self.sidebar.selected) {
-                    self.sidebar_renaming = Some((session.id.clone(), session.title.clone()));
+                    self.sidebar_renaming = Some((session.id.clone(), String::new()));
                     self.needs_redraw = true;
                 }
             }
