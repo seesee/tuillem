@@ -1045,6 +1045,9 @@ impl App {
                 } else if self.input.content.trim().is_empty() {
                     // Empty input: advance scroll (works during and after streaming)
                     let advance = self.scroll_lines;
+                    // Reduce padding as user scrolls past reserved space
+                    self.conversation.response_padding =
+                        self.conversation.response_padding.saturating_sub(advance);
                     let max_offset = self
                         .conversation
                         .total_lines
