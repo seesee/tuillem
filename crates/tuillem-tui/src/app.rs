@@ -467,18 +467,15 @@ impl App {
                 self.conversation.scroll_to_bottom();
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
-                // On first delta, transition from FollowBottom to Streaming
-                // so the render freeze logic kicks in with correct start_offset
+                // On first delta, transition from FollowBottom to Streaming.
+                // start_offset=0 is a sentinel — render() captures the real
+                // value on first frame when total_lines is fresh.
                 if matches!(
                     self.conversation.scroll_state,
                     crate::conversation::ScrollState::FollowBottom
                 ) {
-                    let start = self
-                        .conversation
-                        .total_lines
-                        .saturating_sub(self.conversation.visible_height);
                     self.conversation.scroll_state = crate::conversation::ScrollState::Streaming {
-                        start_offset: start,
+                        start_offset: 0,
                     };
                 }
             }

@@ -438,15 +438,24 @@ impl Conversation {
                 self.scroll_offset = max_offset;
             }
             ScrollState::Streaming { start_offset } => {
+                // Capture real start_offset on first render frame (sentinel=0)
+                let real_start = if start_offset == 0 && max_offset > 0 {
+                    self.scroll_state = ScrollState::Streaming {
+                        start_offset: max_offset,
+                    };
+                    max_offset
+                } else {
+                    start_offset
+                };
                 // Follow the bottom until response fills one visible page,
                 // then freeze so user sees the top of the response.
-                let content_since_start = max_offset.saturating_sub(start_offset);
+                let content_since_start = max_offset.saturating_sub(real_start);
                 if content_since_start <= self.visible_height {
                     // Still filling first page — follow bottom
                     self.scroll_offset = max_offset;
                 } else {
                     // First page filled — freeze at the start of the response
-                    self.scroll_offset = start_offset;
+                    self.scroll_offset = real_start;
                     self.scroll_state = ScrollState::Frozen;
                 }
             }
