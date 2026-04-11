@@ -69,7 +69,7 @@ impl Conversation {
         focused: bool,
         theme: &Theme,
         layout: &str,
-        nerd_fonts: bool,
+        _nerd_fonts: bool,
     ) {
         let is_loose = layout == "loose";
         let margin: usize = if is_loose { 2 } else { 0 };
