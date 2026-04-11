@@ -77,6 +77,7 @@ impl Conversation {
         theme: &Theme,
         layout: &str,
         _nerd_fonts: bool,
+        search_query: &str,
     ) {
         let is_loose = layout == "loose";
         let margin: usize = if is_loose { 2 } else { 0 };
@@ -490,6 +491,24 @@ impl Conversation {
             }
         }
 
+        // Highlight search matches in visible lines
+        if !search_query.is_empty() {
+            let vis_start = self.scroll_offset as usize;
+            let vis_end = (vis_start + self.visible_height as usize).min(lines.len());
+            let highlight_style = Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD);
+
+            for line in &mut lines[vis_start..vis_end] {
+                let new_spans = highlight_spans(&line.spans, search_query, highlight_style);
+                if let Some(spans) = new_spans {
+                    let alignment = line.alignment;
+                    *line = Line::from(spans);
+                    line.alignment = alignment;
+                }
+            }
+        }
+
         let text = Text::from(lines);
 
         // Reserve 2 columns on the right for the scrollbar so right-aligned
@@ -575,6 +594,55 @@ impl Conversation {
         } else {
             self.expanded_thinking.insert(message_index);
         }
+    }
+}
+
+/// Highlight search query matches within existing spans.
+/// Returns None if no matches found (no modification needed).
+fn highlight_spans(
+    spans: &[Span<'static>],
+    query: &str,
+    highlight_style: Style,
+) -> Option<Vec<Span<'static>>> {
+    let lower_query = query.to_lowercase();
+    let mut result = Vec::new();
+    let mut found = false;
+
+    for span in spans {
+        let text = &span.content;
+        let lower_text = text.to_lowercase();
+
+        if !lower_text.contains(&lower_query) {
+            result.push(span.clone());
+            continue;
+        }
+
+        found = true;
+        let mut last = 0;
+        for (start, _) in lower_text.match_indices(&lower_query) {
+            let end = start + lower_query.len();
+            // Ensure we're on char boundaries
+            if !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+                continue;
+            }
+            if start > last {
+                result.push(Span::styled(text[last..start].to_string(), span.style));
+            }
+            result.push(Span::styled(
+                text[start..end].to_string(),
+                highlight_style,
+            ));
+            last = end;
+        }
+        if last < text.len() {
+            result.push(Span::styled(text[last..].to_string(), span.style));
+        }
+    }
+
+    if found {
+        Some(result)
+    } else {
+        None
     }
 }
 

@@ -236,6 +236,7 @@ impl App {
             &self.theme,
             &self.layout,
             self.nerd_fonts,
+            &self.sidebar.search_input,
         );
 
         if show_stats_bar {
