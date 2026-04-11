@@ -441,23 +441,21 @@ impl Conversation {
                 self.scroll_offset = max_offset;
             }
             ScrollState::Streaming { start_offset } => {
-                // Capture real start_offset on first render frame (sentinel=0)
-                let real_start = if start_offset == 0 && max_offset > 0 {
+                // On first frame (sentinel start_offset=0), capture position
+                // and advance viewport by stream_visible_lines
+                if start_offset == 0 && max_offset > 0 {
+                    let advance = self.stream_visible_lines;
+                    let target = self.scroll_offset.saturating_add(advance).min(max_offset);
                     self.scroll_state = ScrollState::Streaming {
-                        start_offset: max_offset,
+                        start_offset: target,
                     };
-                    max_offset
-                } else {
-                    start_offset
-                };
-                // Follow the bottom for stream_visible_lines, then freeze.
-                let content_since_start = max_offset.saturating_sub(real_start);
-                if content_since_start <= self.stream_visible_lines {
-                    self.scroll_offset = max_offset;
-                } else {
-                    self.scroll_offset = real_start;
+                    self.scroll_offset = target;
+                } else if max_offset >= start_offset {
+                    // Content has reached our target — freeze
+                    self.scroll_offset = start_offset;
                     self.scroll_state = ScrollState::Frozen;
                 }
+                // Otherwise hold position, content hasn't reached target yet
             }
             ScrollState::Frozen => {
                 // Don't touch scroll_offset — user controls it
