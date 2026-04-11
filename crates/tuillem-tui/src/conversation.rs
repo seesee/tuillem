@@ -206,45 +206,38 @@ impl Conversation {
                             .unwrap_or(0);
                         let text_style = Style::default().fg(theme.fg).bg(theme.user_msg_bg);
                         let fill_style = Style::default().bg(theme.user_msg_bg);
-                        // Powerline rounded caps (top/bottom only)
-                        let round_open = "\u{E0B6}";
-                        let round_close = "\u{E0B4}";
-                        let round_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
-                        // Straight edge for middle lines (half block creates flush edge)
-                        let straight_open = "▐";  // right half block: fg=bubble, bg=terminal
-                        let straight_close = "▌";  // left half block: fg=bubble, bg=terminal
-                        let straight_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
+                        // Powerline rounded caps for top/bottom
+                        let cap_open = "\u{E0B6}";
+                        let cap_close = "\u{E0B4}";
+                        let cap_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
                         let inner_w = max_line_w + 4; // 2 space padding each side
 
-                        // Top padding line (rounded caps)
+                        // Top line (rounded caps + blank fill)
                         msg_lines.push(
                             Line::from(vec![
-                                Span::styled(round_open.to_string(), round_style),
+                                Span::styled(cap_open.to_string(), cap_style),
                                 Span::styled(" ".repeat(inner_w), fill_style),
-                                Span::styled(round_close.to_string(), round_style),
+                                Span::styled(cap_close.to_string(), cap_style),
                             ])
                             .alignment(Alignment::Right),
                         );
 
-                        // Message content lines (straight edges)
+                        // Message content lines (no side caps — just padded bg extending full width)
                         for ml in &wrapped_lines {
-                            let padded = format!("  {:width$}  ", ml, width = max_line_w);
+                            // Extra space on left to align with cap width
+                            let padded = format!(" {:width$}  ", ml, width = max_line_w + 3);
                             msg_lines.push(
-                                Line::from(vec![
-                                    Span::styled(straight_open.to_string(), straight_style),
-                                    Span::styled(padded, text_style),
-                                    Span::styled(straight_close.to_string(), straight_style),
-                                ])
-                                .alignment(Alignment::Right),
+                                Line::from(Span::styled(padded, text_style))
+                                    .alignment(Alignment::Right),
                             );
                         }
 
-                        // Bottom padding line (rounded caps)
+                        // Bottom line (rounded caps + blank fill)
                         msg_lines.push(
                             Line::from(vec![
-                                Span::styled(round_open.to_string(), round_style),
+                                Span::styled(cap_open.to_string(), cap_style),
                                 Span::styled(" ".repeat(inner_w), fill_style),
-                                Span::styled(round_close.to_string(), round_style),
+                                Span::styled(cap_close.to_string(), cap_style),
                             ])
                             .alignment(Alignment::Right),
                         );
