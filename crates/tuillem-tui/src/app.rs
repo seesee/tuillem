@@ -467,28 +467,23 @@ impl App {
                 self.conversation.scroll_to_bottom();
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
-                // On first delta, ensure enough space for the response preview
-                // then freeze. Viewport won't move again until user presses Enter.
+                // On first delta, reserve space for the response by adding
+                // padding lines, then freeze. Response fills into this space.
                 if matches!(
                     self.conversation.scroll_state,
                     crate::conversation::ScrollState::FollowBottom
                 ) {
-                    // Calculate space needed: ensure at least N blank lines
-                    // below current viewport position for the response to fill
                     let preview = self.conversation.stream_visible_lines;
-                    if preview > 0 {
-                        let max_offset = self.conversation.total_lines
-                            .saturating_sub(self.conversation.visible_height);
-                        // Scroll down by preview lines from current bottom
-                        self.conversation.scroll_offset = max_offset
-                            .saturating_add(preview)
-                            .min(self.conversation.total_lines.saturating_sub(1));
-                    }
+                    // Tell conversation to add N blank padding lines so
+                    // there's space for the response to stream into
+                    self.conversation.response_padding = preview;
+                    // Freeze — viewport won't move, content fills the padding
                     self.conversation.scroll_state = crate::conversation::ScrollState::Frozen;
                 }
             }
             Event::StreamDone { .. } => {
-                // Freeze when done (whether from Streaming or FollowBottom)
+                // Clear response padding and freeze
+                self.conversation.response_padding = 0;
                 if !matches!(
                     self.conversation.scroll_state,
                     crate::conversation::ScrollState::Frozen

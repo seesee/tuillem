@@ -31,8 +31,11 @@ pub struct Conversation {
     pub scroll_state: ScrollState,
     pub highlight_line: Option<u16>,
     pub highlight_set_at: Option<std::time::Instant>,
-    /// How many lines of streaming response to show before freezing.
+    /// How many lines of space to reserve below user message for response.
     pub stream_visible_lines: u16,
+    /// Active padding lines to add at the bottom during streaming.
+    /// Decreases as real content fills in. 0 = no padding.
+    pub response_padding: u16,
     /// Cache of rendered lines per message. Key is (message_id, thinking_expanded).
     /// Invalidated when content_width or layout changes.
     render_cache: HashMap<(String, bool), Vec<Line<'static>>>,
@@ -51,6 +54,7 @@ impl Conversation {
             highlight_line: None,
             highlight_set_at: None,
             stream_visible_lines: 10,
+            response_padding: 0,
             render_cache: HashMap::new(),
             cached_width: 0,
             cached_layout: String::new(),
@@ -421,6 +425,13 @@ impl Conversation {
                     .fg(theme.success)
                     .add_modifier(Modifier::ITALIC),
             )));
+        }
+
+        // Add padding lines during streaming to reserve space for response
+        if self.response_padding > 0 {
+            for _ in 0..self.response_padding {
+                lines.push(Line::from(""));
+            }
         }
 
         self.total_lines = lines.len() as u16;
