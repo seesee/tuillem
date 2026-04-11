@@ -244,7 +244,7 @@ impl SettingsPanel {
                 value: SettingValue::Text(scroll_lines.to_string()),
             },
             SettingItem {
-                label: "Stream Visible Lines".to_string(),
+                label: "Response Preview Lines".to_string(),
                 key: "ui.stream_visible_lines".to_string(),
                 value: SettingValue::Text(stream_visible_lines.to_string()),
             },
