@@ -504,6 +504,12 @@ impl App {
             return;
         }
 
+        // If sidebar rename or delete confirmation is active, route ALL keys there
+        if self.sidebar_renaming.is_some() || self.sidebar_confirm_delete.is_some() {
+            self.handle_sidebar_key(key);
+            return;
+        }
+
         // Global bindings
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             match key.code {
