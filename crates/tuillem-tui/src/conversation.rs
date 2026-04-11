@@ -441,21 +441,28 @@ impl Conversation {
                 self.scroll_offset = max_offset;
             }
             ScrollState::Streaming { start_offset } => {
-                // On first frame (sentinel start_offset=0), capture position
-                // and advance viewport by stream_visible_lines
-                if start_offset == 0 && max_offset > 0 {
-                    let advance = self.stream_visible_lines;
-                    let target = self.scroll_offset.saturating_add(advance).min(max_offset);
+                // On first frame (sentinel start_offset=0), record current
+                // position and set a target N lines ahead for freezing.
+                if start_offset == 0 {
+                    // Current max_offset is where content ends right now.
+                    // We want to follow for stream_visible_lines MORE lines
+                    // from this point, then freeze.
+                    let target = max_offset.saturating_add(self.stream_visible_lines);
                     self.scroll_state = ScrollState::Streaming {
                         start_offset: target,
                     };
-                    self.scroll_offset = target;
+                    // Keep following bottom for now
+                    self.scroll_offset = max_offset;
                 } else if max_offset >= start_offset {
-                    // Content has reached our target — freeze
-                    self.scroll_offset = start_offset;
+                    // Content has grown past our target — freeze here
+                    // Park at start_offset minus the preview lines so user
+                    // sees the beginning of the response
+                    self.scroll_offset = start_offset.saturating_sub(self.stream_visible_lines);
                     self.scroll_state = ScrollState::Frozen;
+                } else {
+                    // Still filling — follow bottom
+                    self.scroll_offset = max_offset;
                 }
-                // Otherwise hold position, content hasn't reached target yet
             }
             ScrollState::Frozen => {
                 // Don't touch scroll_offset — user controls it
