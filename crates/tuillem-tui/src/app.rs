@@ -1201,8 +1201,8 @@ impl App {
 
     fn open_settings(&mut self) {
         let panel = SettingsPanel::new(
-            &self.state.current_provider,
-            &self.state.current_model,
+            &self.default_provider,
+            &self.default_model,
             &self.editor_command,
             &self.config_theme,
             &self.config_keybindings,
