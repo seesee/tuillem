@@ -164,6 +164,7 @@ async fn main() -> Result<()> {
     app.command_prefix = config.ui.command_prefix.clone();
     app.nerd_fonts = config.ui.nerd_fonts;
     app.color_mode = config.ui.color_mode.clone();
+    app.conversation.stream_visible_lines = config.ui.stream_visible_lines;
     app.default_provider = config.defaults.provider.clone().unwrap_or_else(|| {
         config
             .providers

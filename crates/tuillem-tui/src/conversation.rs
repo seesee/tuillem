@@ -31,6 +31,8 @@ pub struct Conversation {
     pub scroll_state: ScrollState,
     pub highlight_line: Option<u16>,
     pub highlight_set_at: Option<std::time::Instant>,
+    /// How many lines of streaming response to show before freezing.
+    pub stream_visible_lines: u16,
     /// Cache of rendered lines per message. Key is (message_id, thinking_expanded).
     /// Invalidated when content_width or layout changes.
     render_cache: HashMap<(String, bool), Vec<Line<'static>>>,
@@ -48,6 +50,7 @@ impl Conversation {
             scroll_state: ScrollState::FollowBottom,
             highlight_line: None,
             highlight_set_at: None,
+            stream_visible_lines: 10,
             render_cache: HashMap::new(),
             cached_width: 0,
             cached_layout: String::new(),
@@ -447,14 +450,11 @@ impl Conversation {
                 } else {
                     start_offset
                 };
-                // Follow the bottom until response fills one visible page,
-                // then freeze so user sees the top of the response.
+                // Follow the bottom for stream_visible_lines, then freeze.
                 let content_since_start = max_offset.saturating_sub(real_start);
-                if content_since_start <= self.visible_height {
-                    // Still filling first page — follow bottom
+                if content_since_start <= self.stream_visible_lines {
                     self.scroll_offset = max_offset;
                 } else {
-                    // First page filled — freeze at the start of the response
                     self.scroll_offset = real_start;
                     self.scroll_state = ScrollState::Frozen;
                 }

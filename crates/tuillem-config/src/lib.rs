@@ -174,6 +174,12 @@ pub struct UiConfig {
     pub nerd_fonts: bool,
     #[serde(default = "default_color_mode")]
     pub color_mode: String,
+    #[serde(default = "default_stream_visible_lines")]
+    pub stream_visible_lines: u16,
+}
+
+fn default_stream_visible_lines() -> u16 {
+    10
 }
 
 fn default_color_mode() -> String {
@@ -206,6 +212,7 @@ impl Default for UiConfig {
             command_prefix: default_command_prefix(),
             nerd_fonts: true,
             color_mode: default_color_mode(),
+            stream_visible_lines: default_stream_visible_lines(),
         }
     }
 }

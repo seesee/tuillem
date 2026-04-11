@@ -93,6 +93,7 @@ impl SettingsPanel {
         scroll_lines: u16,
         command_prefix: &str,
         nerd_fonts: bool,
+        stream_visible_lines: u16,
         color_mode: &str,
         available_models: &[(String, Vec<String>)],
     ) -> Self {
@@ -241,6 +242,11 @@ impl SettingsPanel {
                 label: "Scroll Lines".to_string(),
                 key: "ui.scroll_lines".to_string(),
                 value: SettingValue::Text(scroll_lines.to_string()),
+            },
+            SettingItem {
+                label: "Stream Visible Lines".to_string(),
+                key: "ui.stream_visible_lines".to_string(),
+                value: SettingValue::Text(stream_visible_lines.to_string()),
             },
             SettingItem {
                 label: "Command Prefix".to_string(),

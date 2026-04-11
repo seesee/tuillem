@@ -1216,6 +1216,7 @@ impl App {
             self.scroll_lines,
             &self.command_prefix,
             self.nerd_fonts,
+            self.conversation.stream_visible_lines,
             &self.color_mode,
             &self.available_models,
         );
@@ -1275,6 +1276,11 @@ impl App {
             {
                 self.scroll_lines = lines.max(1);
             }
+            if let Some(v) = panel.get_value("ui.stream_visible_lines")
+                && let Ok(lines) = v.parse::<u16>()
+            {
+                self.conversation.stream_visible_lines = lines.max(1);
+            }
             if let Some(v) = panel.get_value("ui.command_prefix") {
                 self.command_prefix = if v == "(empty)" { String::new() } else { v };
             }
@@ -1321,6 +1327,7 @@ impl App {
         config.ui.command_prefix = self.command_prefix.clone();
         config.ui.nerd_fonts = self.nerd_fonts;
         config.ui.color_mode = self.color_mode.clone();
+        config.ui.stream_visible_lines = self.conversation.stream_visible_lines;
         if !self.default_provider.is_empty() {
             config.defaults.provider = Some(self.default_provider.clone());
         }
@@ -1688,6 +1695,7 @@ impl App {
         self.scroll_lines = config.ui.scroll_lines;
         self.command_prefix = config.ui.command_prefix.clone();
         self.nerd_fonts = config.ui.nerd_fonts;
+        self.conversation.stream_visible_lines = config.ui.stream_visible_lines;
 
         // Defaults
         self.default_provider = config.defaults.provider.clone().unwrap_or_else(|| {
