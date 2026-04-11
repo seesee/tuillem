@@ -204,25 +204,36 @@ impl Conversation {
                             .map(|l| tuillem_markdown::width::terminal_width(l))
                             .max()
                             .unwrap_or(0);
-                        let bubble_w = max_line_w + 2; // 1 space padding each side
+                        let inner_w = max_line_w + 2; // 1 space padding each side
+                        let border_style = Style::default().fg(theme.border);
 
-                        // Top blank line (bg-colored)
-                        let blank = format!("{:width$}", "", width = bubble_w);
+                        // Top border: ╭───╮
                         msg_lines.push(
-                            Line::from(Span::styled(blank.clone(), user_style))
-                                .alignment(Alignment::Right),
+                            Line::from(Span::styled(
+                                format!("╭{}╮", "─".repeat(inner_w)),
+                                border_style,
+                            ))
+                            .alignment(Alignment::Right),
                         );
-                        // Message lines, padded to uniform width
+                        // Message lines with side borders: │ text │
                         for ml in &wrapped_lines {
                             let padded = format!(" {:width$} ", ml, width = max_line_w);
                             msg_lines.push(
-                                Line::from(Span::styled(padded, user_style))
-                                    .alignment(Alignment::Right),
+                                Line::from(vec![
+                                    Span::styled("│", border_style),
+                                    Span::styled(padded, user_style),
+                                    Span::styled("│", border_style),
+                                ])
+                                .alignment(Alignment::Right),
                             );
                         }
-                        // Bottom blank line (bg-colored)
+                        // Bottom border: ╰───╯
                         msg_lines.push(
-                            Line::from(Span::styled(blank, user_style)).alignment(Alignment::Right),
+                            Line::from(Span::styled(
+                                format!("╰{}╯", "─".repeat(inner_w)),
+                                border_style,
+                            ))
+                            .alignment(Alignment::Right),
                         );
                     } else {
                         // Tight mode: original behavior
