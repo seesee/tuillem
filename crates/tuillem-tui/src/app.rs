@@ -1438,6 +1438,15 @@ impl App {
             self.config_system_prompt = prompt.clone();
         }
 
+        // Handle search query from /search command
+        if let Some(ref query) = result.search_query {
+            self.sidebar.search_input = query.clone();
+            self.sidebar.search_focused = false;
+            self.focus = Focus::Sidebar;
+            self.update_focus_state();
+            self.trigger_search();
+        }
+
         // Handle clear confirmation
         if result.request_clear {
             self.pending_clear = true;

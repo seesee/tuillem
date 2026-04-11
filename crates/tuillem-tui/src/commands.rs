@@ -19,6 +19,8 @@ pub struct CommandResult {
     pub request_clear: bool,
     /// Initial message to send after creating a new conversation.
     pub initial_message: Option<String>,
+    /// Search query to populate sidebar search and trigger FTS.
+    pub search_query: Option<String>,
 }
 
 impl CommandResult {
@@ -32,6 +34,7 @@ impl CommandResult {
             set_system_prompt: None,
             request_clear: false,
             initial_message: None,
+            search_query: None,
         }
     }
 
@@ -45,6 +48,7 @@ impl CommandResult {
             set_system_prompt: None,
             request_clear: false,
             initial_message: None,
+            search_query: None,
         }
     }
 
@@ -58,6 +62,7 @@ impl CommandResult {
             set_system_prompt: None,
             request_clear: false,
             initial_message: None,
+            search_query: None,
         }
     }
 
@@ -71,6 +76,7 @@ impl CommandResult {
             set_system_prompt: None,
             request_clear: false,
             initial_message: None,
+            search_query: None,
         }
     }
 }
@@ -145,6 +151,15 @@ pub fn parse_command(input: &str, prefix: &str, ctx: &CommandContext) -> Option<
         "tag" => parse_tag_command(args, ctx),
         "untag" => parse_untag_command(args, ctx),
         "rename" => parse_rename_command(args, ctx),
+        "search" => {
+            if args.is_empty() {
+                CommandResult::err("Usage: /search <terms>")
+            } else {
+                let mut r = CommandResult::ok(format!("Searching: {}", args));
+                r.search_query = Some(args.to_string());
+                r
+            }
+        }
         _ => CommandResult::err(format!(
             "Unknown command: {}{}. Type {}help for available commands.",
             prefix, cmd, prefix
@@ -407,6 +422,10 @@ pub fn render_commands_help(
             Span::styled(format!("  {}export         ", p), normal),
             Span::styled("Save transcript to file", dim),
         ]),
+        Line::from(vec![
+            Span::styled(format!("  {}search <terms> ", p), normal),
+            Span::styled("Search conversations by content", dim),
+        ]),
         Line::from(""),
         Line::from(Span::styled("Info", accent)),
         Line::from(vec![
@@ -466,7 +485,7 @@ pub fn render_commands_help(
 pub fn commands_help_max_scroll(area: ratatui::layout::Rect) -> u16 {
     let popup_height = 30u16.min(area.height.saturating_sub(4));
     let inner_height = popup_height.saturating_sub(2);
-    let total_lines: u16 = 20; // number of lines in the commands help content
+    let total_lines: u16 = 21; // number of lines in the commands help content
     total_lines.saturating_sub(inner_height)
 }
 
@@ -652,6 +671,22 @@ mod tests {
         let ctx = test_ctx();
         let result = parse_command("/export", "/", &ctx).unwrap();
         assert!(result.action.is_some());
+    }
+
+    #[test]
+    fn test_search_command() {
+        let ctx = test_ctx();
+        let result = parse_command("/search hello world", "/", &ctx).unwrap();
+        assert_eq!(result.search_query.as_deref(), Some("hello world"));
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn test_search_empty() {
+        let ctx = test_ctx();
+        let result = parse_command("/search", "/", &ctx).unwrap();
+        assert!(result.error.is_some());
+        assert!(result.search_query.is_none());
     }
 
     #[test]

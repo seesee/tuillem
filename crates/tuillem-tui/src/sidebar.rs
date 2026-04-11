@@ -12,6 +12,40 @@ use tuillem_core::actions::SessionSummary;
 
 use crate::theme::Theme;
 
+/// Split `text` into spans, highlighting case-insensitive matches of `query`.
+fn highlight_matches<'a>(
+    text: &str,
+    query: &str,
+    normal_style: Style,
+    highlight_style: Style,
+) -> Vec<Span<'a>> {
+    if query.is_empty() {
+        return vec![Span::styled(text.to_string(), normal_style)];
+    }
+    let lower_text = text.to_lowercase();
+    let lower_query = query.to_lowercase();
+    let mut spans = Vec::new();
+    let mut last = 0;
+    for (start, _) in lower_text.match_indices(&lower_query) {
+        if start < last {
+            // Overlapping match — skip
+            continue;
+        }
+        if start > last {
+            spans.push(Span::styled(text[last..start].to_string(), normal_style));
+        }
+        spans.push(Span::styled(
+            text[start..start + lower_query.len()].to_string(),
+            highlight_style,
+        ));
+        last = start + lower_query.len();
+    }
+    if last < text.len() {
+        spans.push(Span::styled(text[last..].to_string(), normal_style));
+    }
+    spans
+}
+
 #[derive(Debug, Clone)]
 pub struct Sidebar {
     pub selected: usize,
@@ -209,7 +243,13 @@ impl Sidebar {
                     )),
                 )
             } else {
-                let mut title_spans: Vec<Span> = vec![Span::styled(&session.title, style)];
+                let search_q = &self.search_input;
+                let hl_style = Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD);
+
+                let mut title_spans: Vec<Span> =
+                    highlight_matches(&session.title, search_q, style, hl_style);
                 for tag in &session.tags {
                     title_spans.push(Span::raw(" "));
                     title_spans.push(Span::styled(
@@ -223,12 +263,13 @@ impl Sidebar {
                 let preview_truncated =
                     tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
 
+                let preview_style = Style::default().fg(theme.thinking_fg);
+                let preview_spans =
+                    highlight_matches(&format!(" {}", preview_truncated), search_q, preview_style, hl_style);
+
                 (
                     Line::from(title_spans),
-                    Line::from(Span::styled(
-                        format!(" {}", preview_truncated),
-                        Style::default().fg(theme.thinking_fg),
-                    )),
+                    Line::from(preview_spans),
                 )
             };
 
