@@ -213,7 +213,7 @@ impl Conversation {
                         let bottom_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
 
                         // Top edge
-                        let top_corner = if nerd_fonts { "\u{E0BC}" } else { "▄" };
+                        let top_corner = "▄";
                         msg_lines.push(
                             Line::from(vec![
                                 Span::styled(top_corner.to_string(), top_style),
@@ -232,7 +232,7 @@ impl Conversation {
                         }
 
                         // Bottom edge
-                        let bottom_corner = if nerd_fonts { "\u{E0BE}" } else { "▀" };
+                        let bottom_corner = "▀";
                         msg_lines.push(
                             Line::from(vec![
                                 Span::styled(bottom_corner.to_string(), bottom_style),
