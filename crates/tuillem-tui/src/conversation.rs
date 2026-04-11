@@ -437,11 +437,18 @@ impl Conversation {
             ScrollState::FollowBottom => {
                 self.scroll_offset = max_offset;
             }
-            ScrollState::Streaming { .. } => {
-                // Don't move scroll during streaming — stay where we are.
-                // Content accumulates above/below; "..." indicator shows.
-                // Clamp in case total_lines shrank (re-render)
-                self.scroll_offset = self.scroll_offset.min(max_offset);
+            ScrollState::Streaming { start_offset } => {
+                // Follow the bottom until response fills one visible page,
+                // then freeze so user sees the top of the response.
+                let content_since_start = max_offset.saturating_sub(start_offset);
+                if content_since_start <= self.visible_height {
+                    // Still filling first page — follow bottom
+                    self.scroll_offset = max_offset;
+                } else {
+                    // First page filled — freeze at the start of the response
+                    self.scroll_offset = start_offset;
+                    self.scroll_state = ScrollState::Frozen;
+                }
             }
             ScrollState::Frozen => {
                 // Don't touch scroll_offset — user controls it
