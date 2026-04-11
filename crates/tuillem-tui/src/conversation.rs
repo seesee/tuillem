@@ -206,39 +206,48 @@ impl Conversation {
                             .unwrap_or(0);
                         let text_style = Style::default().fg(theme.fg).bg(theme.user_msg_bg);
                         let fill_style = Style::default().bg(theme.user_msg_bg);
-                        // Powerline rounded caps
-                        let cap_open = "\u{E0B6}";
-                        let cap_close = "\u{E0B4}";
-                        let cap_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
+                        // Powerline rounded caps (top/bottom only)
+                        let round_open = "\u{E0B6}";
+                        let round_close = "\u{E0B4}";
+                        let round_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
+                        // Straight edge for middle lines (half block creates flush edge)
+                        let straight_open = "▐";  // right half block: fg=bubble, bg=terminal
+                        let straight_close = "▌";  // left half block: fg=bubble, bg=terminal
+                        let straight_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
                         let inner_w = max_line_w + 4; // 2 space padding each side
 
-                        // Helper: build a bubble line with caps + content
-                        let make_line = |content: String, style: Style| -> Line<'static> {
+                        // Top padding line (rounded caps)
+                        msg_lines.push(
                             Line::from(vec![
-                                Span::styled(cap_open.to_string(), cap_style),
-                                Span::styled(content, style),
-                                Span::styled(cap_close.to_string(), cap_style),
+                                Span::styled(round_open.to_string(), round_style),
+                                Span::styled(" ".repeat(inner_w), fill_style),
+                                Span::styled(round_close.to_string(), round_style),
                             ])
-                            .alignment(Alignment::Right)
-                        };
+                            .alignment(Alignment::Right),
+                        );
 
-                        // Top padding line (blank with bg fill)
-                        msg_lines.push(make_line(
-                            " ".repeat(inner_w),
-                            fill_style,
-                        ));
-
-                        // Message content lines
+                        // Message content lines (straight edges)
                         for ml in &wrapped_lines {
                             let padded = format!("  {:width$}  ", ml, width = max_line_w);
-                            msg_lines.push(make_line(padded, text_style));
+                            msg_lines.push(
+                                Line::from(vec![
+                                    Span::styled(straight_open.to_string(), straight_style),
+                                    Span::styled(padded, text_style),
+                                    Span::styled(straight_close.to_string(), straight_style),
+                                ])
+                                .alignment(Alignment::Right),
+                            );
                         }
 
-                        // Bottom padding line (blank with bg fill)
-                        msg_lines.push(make_line(
-                            " ".repeat(inner_w),
-                            fill_style,
-                        ));
+                        // Bottom padding line (rounded caps)
+                        msg_lines.push(
+                            Line::from(vec![
+                                Span::styled(round_open.to_string(), round_style),
+                                Span::styled(" ".repeat(inner_w), fill_style),
+                                Span::styled(round_close.to_string(), round_style),
+                            ])
+                            .alignment(Alignment::Right),
+                        );
                     } else {
                         // Tight mode: original behavior
                         for text_line in content.lines() {
