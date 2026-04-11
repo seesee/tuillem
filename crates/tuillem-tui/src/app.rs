@@ -1448,6 +1448,10 @@ impl App {
                 self.focus = Focus::Input;
                 self.update_focus_state();
             }
+            // Send initial message if provided (e.g. /new tell me about vegetables)
+            if let Some(msg) = result.initial_message {
+                let _ = self.action_tx.send(Action::SendMessage { content: msg });
+            }
         }
 
         // Show status or error

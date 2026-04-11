@@ -17,6 +17,8 @@ pub struct CommandResult {
     pub set_system_prompt: Option<String>,
     /// Whether to request clearing the conversation (needs confirmation).
     pub request_clear: bool,
+    /// Initial message to send after creating a new conversation.
+    pub initial_message: Option<String>,
 }
 
 impl CommandResult {
@@ -29,6 +31,7 @@ impl CommandResult {
             set_thinking: None,
             set_system_prompt: None,
             request_clear: false,
+            initial_message: None,
         }
     }
 
@@ -41,6 +44,7 @@ impl CommandResult {
             set_thinking: None,
             set_system_prompt: None,
             request_clear: false,
+            initial_message: None,
         }
     }
 
@@ -53,6 +57,7 @@ impl CommandResult {
             set_thinking: None,
             set_system_prompt: None,
             request_clear: false,
+            initial_message: None,
         }
     }
 
@@ -65,6 +70,7 @@ impl CommandResult {
             set_thinking: None,
             set_system_prompt: None,
             request_clear: false,
+            initial_message: None,
         }
     }
 }
@@ -105,12 +111,19 @@ pub fn parse_command(input: &str, prefix: &str, ctx: &CommandContext) -> Option<
 
     Some(match cmd.as_str() {
         "help" => CommandResult::help(),
-        "new" => CommandResult::action(
-            Action::CreateSession {
-                title: "New Chat".to_string(),
-            },
-            "New conversation created",
-        ),
+        "new" => {
+            let mut r = CommandResult::action(
+                Action::CreateSession {
+                    title: "New Chat".to_string(),
+                },
+                "New conversation created",
+            );
+            if !args.is_empty() {
+                r.initial_message = Some(args.to_string());
+                r.message = Some(format!("New conversation: {}", args));
+            }
+            r
+        }
         "export" => CommandResult::action(Action::SaveTranscript, "Exporting transcript..."),
         "clear" => {
             let mut r = CommandResult::ok("");
