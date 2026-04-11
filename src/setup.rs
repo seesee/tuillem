@@ -54,6 +54,7 @@ pub fn run_setup_wizard() -> Result<Config> {
     println!();
 
     // ── Step 2: Connection Details ──────────────────────────────────────
+    pause()?;
     println!("Step 2/5: Connection Details");
 
     let api_key = if needs_api_key {
@@ -64,8 +65,14 @@ pub fn run_setup_wizard() -> Result<Config> {
         }
         Some(key)
     } else if choice == "5" {
-        // LM Studio / OpenAI-compatible gets a dummy key
-        Some("lm-studio".to_string())
+        // LM Studio / OpenAI-compatible — API key is optional
+        let key = prompt("API Key (press Enter to skip if not configured in LM Studio): ")?;
+        let key = key.trim().to_string();
+        if key.is_empty() {
+            Some("lm-studio".to_string())
+        } else {
+            Some(key)
+        }
     } else {
         None
     };
@@ -85,6 +92,7 @@ pub fn run_setup_wizard() -> Result<Config> {
     println!();
 
     // ── Step 3: Model Selection ─────────────────────────────────────────
+    pause()?;
     println!("Step 3/5: Model Selection");
 
     let default_model_input = prompt("Default model name: ")?;
@@ -110,6 +118,7 @@ pub fn run_setup_wizard() -> Result<Config> {
     println!();
 
     // ── Step 4: Preferences ─────────────────────────────────────────────
+    pause()?;
     println!("Step 4/5: Preferences");
 
     let theme_input =
@@ -133,9 +142,19 @@ pub fn run_setup_wizard() -> Result<Config> {
 
     println!();
 
-    // ── Step 5: Save ────────────────────────────────────────────────────
+    // ── Step 5: Review & Save ──────────────────────────────────────────
     let config_path = Config::default_path();
-    println!("Step 5/5: Save");
+    println!("Step 5/5: Review & Save");
+    println!();
+    println!("  Provider:  {} ({})", provider_name, format!("{:?}", provider_type).to_lowercase());
+    println!("  Model:     {}", if default_model.is_empty() { "(none)" } else { &default_model });
+    if !extra_models.is_empty() {
+        println!("  Also:      {}", extra_models.join(", "));
+    }
+    println!("  Theme:     {}", theme);
+    println!("  Layout:    {}", layout);
+    println!("  Editor:    {}", editor);
+    println!();
     println!("Config will be saved to: {}", config_path.display());
 
     let confirm = prompt("Save and start tuillem? [Y/n]: ")?;
@@ -186,6 +205,14 @@ pub fn run_setup_wizard() -> Result<Config> {
     println!();
 
     Ok(config)
+}
+
+fn pause() -> Result<()> {
+    print!("\n  Press Enter to continue...");
+    io::stdout().flush().context("failed to flush stdout")?;
+    let mut buf = String::new();
+    io::stdin().read_line(&mut buf).context("failed to read input")?;
+    Ok(())
 }
 
 fn prompt(message: &str) -> Result<String> {
