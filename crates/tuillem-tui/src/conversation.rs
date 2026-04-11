@@ -441,27 +441,11 @@ impl Conversation {
                 self.scroll_offset = max_offset;
             }
             ScrollState::Streaming { start_offset } => {
-                // On first frame (sentinel start_offset=0), record current
-                // position and set a target N lines ahead for freezing.
+                // First frame (sentinel=0): advance viewport by N lines and freeze
                 if start_offset == 0 {
-                    // Current max_offset is where content ends right now.
-                    // We want to follow for stream_visible_lines MORE lines
-                    // from this point, then freeze.
-                    let target = max_offset.saturating_add(self.stream_visible_lines);
-                    self.scroll_state = ScrollState::Streaming {
-                        start_offset: target,
-                    };
-                    // Keep following bottom for now
-                    self.scroll_offset = max_offset;
-                } else if max_offset >= start_offset {
-                    // Content has grown past our target — freeze here
-                    // Park at start_offset minus the preview lines so user
-                    // sees the beginning of the response
-                    self.scroll_offset = start_offset.saturating_sub(self.stream_visible_lines);
+                    let advance = self.stream_visible_lines;
+                    self.scroll_offset = self.scroll_offset.saturating_add(advance).min(max_offset);
                     self.scroll_state = ScrollState::Frozen;
-                } else {
-                    // Still filling — follow bottom
-                    self.scroll_offset = max_offset;
                 }
             }
             ScrollState::Frozen => {
