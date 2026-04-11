@@ -261,16 +261,16 @@ impl Sidebar {
         frame.render_widget(list, list_area);
 
         // Show terminal cursor when renaming
-        if let Some((_, buf)) = renaming {
-            if let Some(ry) = rename_line_y {
-                let prefix_text = "Rename: ";
-                let cursor_x = list_area.x + prefix_text.len() as u16 + buf.chars().count() as u16;
-                let cursor_y = list_area.y + ry;
-                if cursor_x < list_area.x + list_area.width
-                    && cursor_y < list_area.y + list_area.height
-                {
-                    frame.set_cursor_position((cursor_x, cursor_y));
-                }
+        if let Some((_, buf)) = renaming
+            && let Some(ry) = rename_line_y
+        {
+            let prefix_text = "Rename: ";
+            let cursor_x = list_area.x + prefix_text.len() as u16 + buf.chars().count() as u16;
+            let cursor_y = list_area.y + ry;
+            if cursor_x < list_area.x + list_area.width
+                && cursor_y < list_area.y + list_area.height
+            {
+                frame.set_cursor_position((cursor_x, cursor_y));
             }
         }
 

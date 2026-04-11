@@ -439,15 +439,15 @@ impl Theme {
 
 /// Detect the best color mode from environment variables.
 pub fn detect_color_mode() -> &'static str {
-    if let Ok(ct) = std::env::var("COLORTERM") {
-        if ct == "truecolor" || ct == "24bit" {
-            return "truecolor";
-        }
+    if let Ok(ct) = std::env::var("COLORTERM")
+        && (ct == "truecolor" || ct == "24bit")
+    {
+        return "truecolor";
     }
-    if let Ok(term) = std::env::var("TERM") {
-        if term.contains("256color") {
-            return "256";
-        }
+    if let Ok(term) = std::env::var("TERM")
+        && term.contains("256color")
+    {
+        return "256";
     }
     "basic"
 }
