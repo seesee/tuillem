@@ -60,13 +60,25 @@ Escape
 Sleep 1s
 
 # Show slash command: /new with prompt
-Type "/new Write me a haiku about terminal user interfaces"
+Type "/new Write a 'Survival Guide for New Rustaceans' written by a weary, caffeine-addicted senior developer. Use heavy markdown formatting (bolding, italics, blockquotes) to convey dramatic flair. Include a table titled 'The Hierarchy of Rust Frustration' that ranks common errors (like Borrow Checker battles or lifetime annotations) by 'Mental Stability Lost' and 'Recommended Coping Mechanism.' End with a slightly sarcastic motivational quote."
 Sleep 500ms
 Enter
-Sleep 6s
+Sleep 10s
+Enter
+Sleep 2s
+Enter
+Sleep 1s
+Enter
+Sleep 1s
+Enter
+Sleep 1s
+Enter
+Sleep 1s
+Enter
 
 # Let response stream
-Sleep 3s
+Sleep 1s
+Enter
 
 # Show sidebar navigation
 Tab
@@ -86,6 +98,13 @@ Sleep 500ms
 Type "/"
 Sleep 300ms
 Type "rust"
+Enter
+Sleep 1s
+Down
+Sleep 1s
+Down
+Sleep 1s
+Down
 Sleep 1s
 Escape
 Sleep 1s
