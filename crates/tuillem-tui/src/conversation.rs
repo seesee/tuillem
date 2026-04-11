@@ -440,13 +440,9 @@ impl Conversation {
             ScrollState::FollowBottom => {
                 self.scroll_offset = max_offset;
             }
-            ScrollState::Streaming { start_offset } => {
-                // First frame (sentinel=0): advance viewport by N lines and freeze
-                if start_offset == 0 {
-                    let advance = self.stream_visible_lines;
-                    self.scroll_offset = self.scroll_offset.saturating_add(advance).min(max_offset);
-                    self.scroll_state = ScrollState::Frozen;
-                }
+            ScrollState::Streaming { .. } => {
+                // Legacy — shouldn't reach here; treat as Frozen
+                self.scroll_offset = self.scroll_offset.min(max_offset);
             }
             ScrollState::Frozen => {
                 // Don't touch scroll_offset — user controls it

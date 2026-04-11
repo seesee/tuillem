@@ -467,16 +467,24 @@ impl App {
                 self.conversation.scroll_to_bottom();
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
-                // On first delta, transition from FollowBottom to Streaming.
-                // start_offset=0 is a sentinel — render() captures the real
-                // value on first frame when total_lines is fresh.
+                // On first delta, ensure enough space for the response preview
+                // then freeze. Viewport won't move again until user presses Enter.
                 if matches!(
                     self.conversation.scroll_state,
                     crate::conversation::ScrollState::FollowBottom
                 ) {
-                    self.conversation.scroll_state = crate::conversation::ScrollState::Streaming {
-                        start_offset: 0,
-                    };
+                    // Calculate space needed: ensure at least N blank lines
+                    // below current viewport position for the response to fill
+                    let preview = self.conversation.stream_visible_lines;
+                    if preview > 0 {
+                        let max_offset = self.conversation.total_lines
+                            .saturating_sub(self.conversation.visible_height);
+                        // Scroll down by preview lines from current bottom
+                        self.conversation.scroll_offset = max_offset
+                            .saturating_add(preview)
+                            .min(self.conversation.total_lines.saturating_sub(1));
+                    }
+                    self.conversation.scroll_state = crate::conversation::ScrollState::Frozen;
                 }
             }
             Event::StreamDone { .. } => {
