@@ -136,6 +136,8 @@ impl Sidebar {
         let mut items: Vec<ListItem> = Vec::new();
         let mut current_group: Option<String> = None;
         let mut item_index = 0;
+        let mut rename_line_y: Option<u16> = None; // track Y position of renaming item
+        let mut current_line: u16 = 0;
         let header_style = Style::default()
             .fg(theme.accent)
             .add_modifier(Modifier::ITALIC);
@@ -146,11 +148,13 @@ impl Sidebar {
                 // Add group header
                 if current_group.is_some() && is_loose {
                     items.push(ListItem::new(Line::from("")));
+                    current_line += 1;
                 }
                 items.push(ListItem::new(Line::from(Span::styled(
                     group.clone(),
                     header_style,
                 ))));
+                current_line += 1;
                 current_group = Some(group);
             }
 
@@ -164,6 +168,11 @@ impl Sidebar {
             // Check if this session has a pending action
             let is_confirming_delete = confirm_delete == Some(session.id.as_str());
             let is_renaming = renaming.is_some_and(|(id, _)| id == session.id);
+
+            // Track the Y position of the renaming item
+            if is_renaming {
+                rename_line_y = Some(current_line);
+            }
 
             let (title_line, preview_line) = if is_confirming_delete {
                 // Delete confirmation
@@ -228,12 +237,14 @@ impl Sidebar {
                 item_lines.push(Line::from(""));
             }
 
+            let item_height = if is_loose { 3u16 } else { 2u16 };
             items.push(ListItem::new(item_lines).style(if is_selected {
                 Style::default().bg(theme.sidebar_selected_bg)
             } else {
                 Style::default()
             }));
 
+            current_line += item_height;
             item_index += 1;
 
             // Stop if we've filled the visible area (rough estimate)
@@ -250,19 +261,14 @@ impl Sidebar {
         frame.render_widget(list, list_area);
 
         // Show terminal cursor when renaming
-        if let Some((rename_id, buf)) = renaming {
-            // Find which visible row the renaming item is on
-            let rename_visible_idx = filtered
-                .iter()
-                .skip(self.scroll_offset)
-                .position(|s| s.id == rename_id);
-            if let Some(vis_idx) = rename_visible_idx {
-                let lines_per_item: usize = if is_loose { 3 } else { 2 };
-                // Account for date group headers above this item
+        if let Some((_, buf)) = renaming {
+            if let Some(ry) = rename_line_y {
                 let prefix_text = "Rename: ";
                 let cursor_x = list_area.x + prefix_text.len() as u16 + buf.chars().count() as u16;
-                let cursor_y = list_area.y + (vis_idx * lines_per_item) as u16;
-                if cursor_x < list_area.x + list_area.width && cursor_y < list_area.y + list_area.height {
+                let cursor_y = list_area.y + ry;
+                if cursor_x < list_area.x + list_area.width
+                    && cursor_y < list_area.y + list_area.height
+                {
                     frame.set_cursor_position((cursor_x, cursor_y));
                 }
             }
