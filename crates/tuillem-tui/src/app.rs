@@ -967,10 +967,11 @@ impl App {
                 }
             }
             KeyCode::Char('r') => {
-                // Start rename
+                // Start rename — start with existing title for editing
                 let filtered = self.sidebar.filtered_sessions(&self.state.sessions);
                 if let Some(session) = filtered.get(self.sidebar.selected) {
                     self.sidebar_renaming = Some((session.id.clone(), session.title.clone()));
+                    self.needs_redraw = true;
                 }
             }
             KeyCode::Char('/') => {

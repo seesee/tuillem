@@ -249,6 +249,25 @@ impl Sidebar {
         let list = List::new(items);
         frame.render_widget(list, list_area);
 
+        // Show terminal cursor when renaming
+        if let Some((rename_id, buf)) = renaming {
+            // Find which visible row the renaming item is on
+            let rename_visible_idx = filtered
+                .iter()
+                .skip(self.scroll_offset)
+                .position(|s| s.id == rename_id);
+            if let Some(vis_idx) = rename_visible_idx {
+                let lines_per_item: usize = if is_loose { 3 } else { 2 };
+                // Account for date group headers above this item
+                let prefix_text = "Rename: ";
+                let cursor_x = list_area.x + prefix_text.len() as u16 + buf.chars().count() as u16;
+                let cursor_y = list_area.y + (vis_idx * lines_per_item) as u16;
+                if cursor_x < list_area.x + list_area.width && cursor_y < list_area.y + list_area.height {
+                    frame.set_cursor_position((cursor_x, cursor_y));
+                }
+            }
+        }
+
         // Render scrollbar if there are more sessions than visible
         let total_sessions = filtered.len();
         if total_sessions > self.visible_count {
