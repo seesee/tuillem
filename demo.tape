@@ -26,6 +26,8 @@ Sleep 2s
 Sleep 1s
 
 # Type a message
+Ctrl+N
+Sleep 1s
 Type "Hello! Can you give me a brief overview of the Rust programming language in a few bullet points?"
 Sleep 500ms
 Enter
