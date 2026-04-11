@@ -516,7 +516,7 @@ impl SettingsPanel {
 
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let popup_width = 60u16.min(area.width.saturating_sub(6));
-        let popup_height = (self.items.len() as u16 * 2 + 3).min(area.height.saturating_sub(4));
+        let popup_height = (self.items.len() as u16 + 3).min(area.height.saturating_sub(4));
         let x = (area.width.saturating_sub(popup_width)) / 2;
         let y = (area.height.saturating_sub(popup_height)) / 2;
         let popup_area = Rect::new(x, y, popup_width, popup_height);
@@ -619,10 +619,6 @@ impl SettingsPanel {
                 ),
             ]));
 
-            // Add a blank line between items (except after the last)
-            if i + 1 < self.items.len() {
-                lines.push(Line::from(""));
-            }
         }
 
         let dirty_marker = if self.dirty { " [modified] " } else { "" };
