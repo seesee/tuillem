@@ -41,7 +41,7 @@ Enter
 Sleep 2s
 
 # Show model switching with Ctrl+O
-Ctrl+o
+Ctrl+O
 Sleep 1s
 # Navigate the model list
 Down
@@ -52,7 +52,7 @@ Escape
 Sleep 1s
 
 # Show the command palette with Ctrl+K
-Ctrl+k
+Ctrl+K
 Sleep 1.5s
 Escape
 Sleep 1s
@@ -89,7 +89,7 @@ Escape
 Sleep 1s
 
 # Show help overlay
-Ctrl+h
+Ctrl+H
 Sleep 3s
 # Scroll help
 Down
@@ -100,7 +100,7 @@ Escape
 Sleep 1s
 
 # Show settings
-Ctrl+s
+Ctrl+S
 Sleep 2s
 # Navigate settings
 Down
@@ -113,13 +113,13 @@ Escape
 Sleep 1s
 
 # Toggle sidebar
-Ctrl+l
+Ctrl+L
 Sleep 1.5s
-Ctrl+l
+Ctrl+L
 Sleep 1.5s
 
 # Copy response
-Ctrl+y
+Ctrl+Y
 Sleep 1.5s
 
 # Show stats
@@ -131,5 +131,5 @@ Sleep 2s
 Sleep 3s
 
 # Quit
-Ctrl+c
+Ctrl+C
 Sleep 1s
