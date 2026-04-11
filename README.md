@@ -2,6 +2,12 @@
 
 A 3-pane terminal AI chat client with easy connectivity to local and remote LLM endpoints. Switch between providers and models mid-conversation. Full markdown rendering with tables and syntax highlighting. SQLite-backed conversation history with full-text search. Configurable themes, slash commands, and a plugin framework for extensibility.
 
+## Demo
+
+![tuillem demo](demo.gif)
+
+*Record your own demo: `vhs demo.tape` (requires [vhs](https://github.com/charmbracelet/vhs))*
+
 ## Features
 
 - **Multi-provider support** -- Anthropic, OpenAI, OpenRouter, Ollama, LM Studio, and any OpenAI-compatible endpoint
