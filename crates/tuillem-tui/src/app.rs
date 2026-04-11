@@ -467,17 +467,22 @@ impl App {
                 self.conversation.scroll_to_bottom();
             }
             Event::StreamDelta { .. } | Event::ThinkingDelta { .. } => {
-                // On first delta, reserve space for the response by adding
-                // padding lines, then freeze. Response fills into this space.
                 if matches!(
                     self.conversation.scroll_state,
                     crate::conversation::ScrollState::FollowBottom
                 ) {
+                    // First delta: add padding lines and transition to Streaming.
+                    // Stay in FollowBottom-like mode for one more frame so the
+                    // padding lines get rendered and the viewport scrolls to show them.
                     let preview = self.conversation.stream_visible_lines;
-                    // Tell conversation to add N blank padding lines so
-                    // there's space for the response to stream into
                     self.conversation.response_padding = preview;
-                    // Freeze — viewport won't move, content fills the padding
+                    self.conversation.scroll_state =
+                        crate::conversation::ScrollState::Streaming { start_offset: 0 };
+                } else if matches!(
+                    self.conversation.scroll_state,
+                    crate::conversation::ScrollState::Streaming { .. }
+                ) {
+                    // Second+ delta: freeze now that padding is visible
                     self.conversation.scroll_state = crate::conversation::ScrollState::Frozen;
                 }
             }

@@ -452,8 +452,8 @@ impl Conversation {
                 self.scroll_offset = max_offset;
             }
             ScrollState::Streaming { .. } => {
-                // Legacy — shouldn't reach here; treat as Frozen
-                self.scroll_offset = self.scroll_offset.min(max_offset);
+                // Transitional: follow bottom for one frame so padding is visible
+                self.scroll_offset = max_offset;
             }
             ScrollState::Frozen => {
                 // Don't touch scroll_offset — user controls it
