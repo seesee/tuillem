@@ -211,10 +211,10 @@ impl Conversation {
                         // Bottom edge: ▀ with fg=bubble draws upper-half block = curved bottom
                         let bottom_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
 
-                        // Top edge: rounded left corner + straight fill
+                        // Top edge: powerline arc left corner + half-block fill
                         msg_lines.push(
                             Line::from(vec![
-                                Span::styled("▗", top_style),
+                                Span::styled("\u{E0B8}", top_style),
                                 Span::styled("▄".repeat(bubble_w - 1), top_style),
                             ])
                             .alignment(Alignment::Right),
@@ -229,10 +229,10 @@ impl Conversation {
                             );
                         }
 
-                        // Bottom edge: rounded left corner + straight fill
+                        // Bottom edge: powerline arc left corner + half-block fill
                         msg_lines.push(
                             Line::from(vec![
-                                Span::styled("▝", bottom_style),
+                                Span::styled("\u{E0BA}", bottom_style),
                                 Span::styled("▀".repeat(bubble_w - 1), bottom_style),
                             ])
                             .alignment(Alignment::Right),
