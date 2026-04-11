@@ -11,7 +11,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/seesee/tuillem"
@@ -44,13 +44,13 @@ keywords = ["tui", "llm", "chat", "ai", "terminal"]
 categories = ["command-line-interface"]
 
 [dependencies]
-tuillem-config = { path = "crates/tuillem-config", version = "0.1.1" }
-tuillem-db = { path = "crates/tuillem-db", version = "0.1.1" }
-tuillem-markdown = { path = "crates/tuillem-markdown", version = "0.1.1" }
-tuillem-provider = { path = "crates/tuillem-provider", version = "0.1.1" }
-tuillem-plugin = { path = "crates/tuillem-plugin", version = "0.1.1" }
-tuillem-core = { path = "crates/tuillem-core", version = "0.1.1" }
-tuillem-tui = { path = "crates/tuillem-tui", version = "0.1.1" }
+tuillem-config = { path = "crates/tuillem-config", version = "0.1.2" }
+tuillem-db = { path = "crates/tuillem-db", version = "0.1.2" }
+tuillem-markdown = { path = "crates/tuillem-markdown", version = "0.1.2" }
+tuillem-provider = { path = "crates/tuillem-provider", version = "0.1.2" }
+tuillem-plugin = { path = "crates/tuillem-plugin", version = "0.1.2" }
+tuillem-core = { path = "crates/tuillem-core", version = "0.1.2" }
+tuillem-tui = { path = "crates/tuillem-tui", version = "0.1.2" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }

@@ -8,9 +8,9 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-tuillem-config = { path = "../tuillem-config", version = "0.1.1" }
-tuillem-core = { path = "../tuillem-core", version = "0.1.1" }
-tuillem-markdown = { path = "../tuillem-markdown", version = "0.1.1" }
+tuillem-config = { path = "../tuillem-config", version = "0.1.2" }
+tuillem-core = { path = "../tuillem-core", version = "0.1.2" }
+tuillem-markdown = { path = "../tuillem-markdown", version = "0.1.2" }
 ratatui = "0.30"
 crossterm = "0.29"
 tokio = { workspace = true }
