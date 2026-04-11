@@ -12,7 +12,7 @@ tuillem-config = { path = "../tuillem-config", version = "0.1.0" }
 tokio = { workspace = true }
 tokio-stream = "0.1"
 bytes = "1"
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
