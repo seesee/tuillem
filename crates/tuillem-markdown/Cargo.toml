@@ -2,6 +2,10 @@
 name = "tuillem-markdown"
 version.workspace = true
 edition.workspace = true
+description = "Terminal markdown rendering for tuillem"
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
 
 [dependencies]
 comrak = { version = "0.36", default-features = false }

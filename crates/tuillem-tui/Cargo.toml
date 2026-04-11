@@ -2,11 +2,15 @@
 name = "tuillem-tui"
 version.workspace = true
 edition.workspace = true
+description = "Ratatui TUI layer for tuillem"
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
 
 [dependencies]
-tuillem-config = { path = "../tuillem-config" }
-tuillem-core = { path = "../tuillem-core" }
-tuillem-markdown = { path = "../tuillem-markdown" }
+tuillem-config = { path = "../tuillem-config", version = "0.1.0" }
+tuillem-core = { path = "../tuillem-core", version = "0.1.0" }
+tuillem-markdown = { path = "../tuillem-markdown", version = "0.1.0" }
 ratatui = "0.30"
 crossterm = "0.29"
 tokio = { workspace = true }

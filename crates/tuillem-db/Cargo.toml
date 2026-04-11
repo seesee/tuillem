@@ -2,6 +2,10 @@
 name = "tuillem-db"
 version.workspace = true
 edition.workspace = true
+description = "SQLite storage layer for tuillem"
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
 
 [dependencies]
 rusqlite = { version = "0.39", features = ["bundled-full"] }

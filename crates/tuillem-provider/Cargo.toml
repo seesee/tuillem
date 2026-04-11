@@ -2,9 +2,13 @@
 name = "tuillem-provider"
 version.workspace = true
 edition.workspace = true
+description = "LLM provider abstraction for tuillem"
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
 
 [dependencies]
-tuillem-config = { path = "../tuillem-config" }
+tuillem-config = { path = "../tuillem-config", version = "0.1.0" }
 tokio = { workspace = true }
 tokio-stream = "0.1"
 bytes = "1"
