@@ -375,6 +375,31 @@ impl Theme {
         self
     }
 
+    /// Create a new Theme where every colour field has been adapted to the given color mode.
+    pub fn adapt_to_color_mode(&self, mode: &str) -> Self {
+        Self {
+            bg: adapt_color(self.bg, mode),
+            fg: adapt_color(self.fg, mode),
+            sidebar_bg: adapt_color(self.sidebar_bg, mode),
+            sidebar_fg: adapt_color(self.sidebar_fg, mode),
+            sidebar_selected: adapt_color(self.sidebar_selected, mode),
+            user_msg_bg: adapt_color(self.user_msg_bg, mode),
+            assistant_msg_bg: adapt_color(self.assistant_msg_bg, mode),
+            thinking_fg: adapt_color(self.thinking_fg, mode),
+            accent: adapt_color(self.accent, mode),
+            error: adapt_color(self.error, mode),
+            success: adapt_color(self.success, mode),
+            warning: adapt_color(self.warning, mode),
+            border: adapt_color(self.border, mode),
+            code_bg: adapt_color(self.code_bg, mode),
+            code_fg: adapt_color(self.code_fg, mode),
+            heading: adapt_color(self.heading, mode),
+            link: adapt_color(self.link, mode),
+            tag: adapt_color(self.tag, mode),
+            sidebar_selected_bg: adapt_color(self.sidebar_selected_bg, mode),
+        }
+    }
+
     // Style convenience methods
 
     pub fn sidebar_style(&self) -> Style {
@@ -405,6 +430,117 @@ impl Theme {
 
     pub fn error_style(&self) -> Style {
         Style::default().fg(self.error)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Colour-mode conversion
+// ---------------------------------------------------------------------------
+
+/// Detect the best color mode from environment variables.
+pub fn detect_color_mode() -> &'static str {
+    if let Ok(ct) = std::env::var("COLORTERM") {
+        if ct == "truecolor" || ct == "24bit" {
+            return "truecolor";
+        }
+    }
+    if let Ok(term) = std::env::var("TERM") {
+        if term.contains("256color") {
+            return "256";
+        }
+    }
+    "basic"
+}
+
+/// Resolve a color_mode config value, handling "auto" via environment detection.
+pub fn resolve_color_mode(mode: &str) -> &str {
+    match mode {
+        "truecolor" | "256" | "basic" => mode,
+        _ => detect_color_mode(), // "auto" or any unrecognised value
+    }
+}
+
+/// Convert a `Color::Rgb` to the appropriate format based on the color mode.
+/// Non-RGB colours (Reset, Black, Red, Indexed, etc.) pass through unchanged.
+pub fn adapt_color(color: Color, mode: &str) -> Color {
+    match mode {
+        "truecolor" => color,
+        "256" => rgb_to_256(color),
+        "basic" => rgb_to_basic(color),
+        _ => color, // auto already resolved, but fall back to passthrough
+    }
+}
+
+/// Map an RGB colour to the nearest xterm-256 palette entry.
+fn rgb_to_256(color: Color) -> Color {
+    if let Color::Rgb(r, g, b) = color {
+        // Check if it's close to greyscale first
+        if r == g && g == b {
+            if r < 8 {
+                return Color::Indexed(16);
+            }
+            if r > 248 {
+                return Color::Indexed(231);
+            }
+            return Color::Indexed(232 + ((r as u16 - 8) * 24 / 247) as u8);
+        }
+        // Map to 6x6x6 colour cube
+        let ri = (r as u16 * 5 / 255) as u8;
+        let gi = (g as u16 * 5 / 255) as u8;
+        let bi = (b as u16 * 5 / 255) as u8;
+        Color::Indexed(16 + 36 * ri + 6 * gi + bi)
+    } else {
+        color
+    }
+}
+
+/// Map an RGB colour to the nearest ANSI basic 16-colour.
+fn rgb_to_basic(color: Color) -> Color {
+    if let Color::Rgb(r, g, b) = color {
+        let luma = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u16;
+        let bright = luma > 127;
+
+        // Determine dominant channel(s)
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        let chroma = max as i16 - min as i16;
+
+        // Near-grey: use black/darkgrey/lightgrey/white
+        if chroma < 30 {
+            return match luma {
+                0..=63 => Color::Black,
+                64..=127 => Color::DarkGray,
+                128..=191 => Color::Gray,
+                _ => Color::White,
+            };
+        }
+
+        // Map to basic hue based on dominant channel
+        match (r >= g, r >= b, g >= b) {
+            (true, true, true) if g as i16 - b as i16 > chroma / 3 => {
+                if bright { Color::LightYellow } else { Color::Yellow }
+            }
+            (true, true, _) => {
+                if bright { Color::LightRed } else { Color::Red }
+            }
+            (false, _, true) if g as i16 - r as i16 > chroma / 3 => {
+                if bright { Color::LightGreen } else { Color::Green }
+            }
+            (false, _, true) => {
+                if bright { Color::LightCyan } else { Color::Cyan }
+            }
+            (_, false, false) if r as i16 - g as i16 > chroma / 3 => {
+                if bright { Color::LightMagenta } else { Color::Magenta }
+            }
+            (_, false, false) => {
+                if bright { Color::LightBlue } else { Color::Blue }
+            }
+            _ => {
+                if bright { Color::White } else { Color::Gray }
+            }
+        }
+    } else {
+        color
     }
 }
 
@@ -445,6 +581,61 @@ mod tests {
         assert_eq!(theme.bg, Color::Rgb(30, 30, 46));
         assert_eq!(theme.fg, Color::Rgb(205, 214, 244));
         assert_eq!(theme.sidebar_bg, Color::Rgb(24, 24, 37));
+    }
+
+    #[test]
+    fn test_rgb_to_256_greyscale() {
+        // Pure black → index 16
+        assert_eq!(rgb_to_256(Color::Rgb(0, 0, 0)), Color::Indexed(16));
+        // Pure white → index 231
+        assert_eq!(rgb_to_256(Color::Rgb(255, 255, 255)), Color::Indexed(231));
+        // Mid grey → greyscale ramp
+        let c = rgb_to_256(Color::Rgb(128, 128, 128));
+        if let Color::Indexed(i) = c {
+            assert!((232..=255).contains(&i), "Expected greyscale index, got {i}");
+        } else {
+            panic!("Expected Color::Indexed");
+        }
+    }
+
+    #[test]
+    fn test_rgb_to_256_colour() {
+        // Pure red → should map to cube entry near red
+        let c = rgb_to_256(Color::Rgb(255, 0, 0));
+        assert_eq!(c, Color::Indexed(16 + 36 * 5)); // ri=5, gi=0, bi=0 → 196
+    }
+
+    #[test]
+    fn test_rgb_to_basic() {
+        // Pure white → White
+        assert_eq!(rgb_to_basic(Color::Rgb(255, 255, 255)), Color::White);
+        // Pure black → Black
+        assert_eq!(rgb_to_basic(Color::Rgb(0, 0, 0)), Color::Black);
+        // Non-RGB passes through
+        assert_eq!(rgb_to_basic(Color::Red), Color::Red);
+        assert_eq!(rgb_to_basic(Color::Reset), Color::Reset);
+    }
+
+    #[test]
+    fn test_adapt_color_passthrough() {
+        // truecolor mode passes through unchanged
+        let c = Color::Rgb(100, 200, 50);
+        assert_eq!(adapt_color(c, "truecolor"), c);
+        // Non-RGB colours always pass through
+        assert_eq!(adapt_color(Color::Red, "256"), Color::Red);
+        assert_eq!(adapt_color(Color::Reset, "basic"), Color::Reset);
+    }
+
+    #[test]
+    fn test_adapt_to_color_mode() {
+        let theme = Theme::dark();
+        let adapted = theme.adapt_to_color_mode("256");
+        // All colours should now be Indexed, not Rgb
+        if let Color::Indexed(_) = adapted.bg {
+            // good
+        } else {
+            panic!("Expected bg to be Color::Indexed after 256 adaptation");
+        }
     }
 
     #[test]

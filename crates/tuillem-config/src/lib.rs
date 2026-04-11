@@ -172,6 +172,12 @@ pub struct UiConfig {
     pub command_prefix: String,
     #[serde(default = "default_true")]
     pub nerd_fonts: bool,
+    #[serde(default = "default_color_mode")]
+    pub color_mode: String,
+}
+
+fn default_color_mode() -> String {
+    "auto".to_string()
 }
 
 fn default_command_prefix() -> String {
@@ -199,6 +205,7 @@ impl Default for UiConfig {
             scroll_lines: default_scroll_lines(),
             command_prefix: default_command_prefix(),
             nerd_fonts: true,
+            color_mode: default_color_mode(),
         }
     }
 }

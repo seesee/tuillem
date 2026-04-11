@@ -108,8 +108,10 @@ async fn main() -> Result<()> {
     let (action_tx, action_rx) = mpsc::unbounded_channel();
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
-    // 9. Build Theme from config
-    let theme = tuillem_tui::theme::Theme::from_config(&config.theme, &config.themes);
+    // 9. Build Theme from config (with colour degradation)
+    let resolved_color_mode = tuillem_tui::theme::resolve_color_mode(&config.ui.color_mode);
+    let theme = tuillem_tui::theme::Theme::from_config(&config.theme, &config.themes)
+        .adapt_to_color_mode(resolved_color_mode);
 
     // 10. Build AppState with default provider/model
     let state = tuillem_core::AppState::new(default_provider.clone(), default_model.clone());
@@ -161,6 +163,7 @@ async fn main() -> Result<()> {
     app.scroll_lines = config.ui.scroll_lines;
     app.command_prefix = config.ui.command_prefix.clone();
     app.nerd_fonts = config.ui.nerd_fonts;
+    app.color_mode = config.ui.color_mode.clone();
     app.default_provider = config.defaults.provider.clone().unwrap_or_else(|| {
         config
             .providers

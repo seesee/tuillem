@@ -103,6 +103,8 @@ pub struct App {
     pub command_prefix: String,
     /// Use Nerd Font / Powerline glyphs for bubble corners (default true).
     pub nerd_fonts: bool,
+    /// Colour mode: "truecolor", "256", "basic", or "auto" (default "auto").
+    pub color_mode: String,
     /// Set when /clear is issued; next Enter confirms.
     pub pending_clear: bool,
     /// Scroll offset for the keyboard help overlay.
@@ -156,6 +158,7 @@ impl App {
             sidebar_collapsed: false,
             command_prefix: "/".to_string(),
             nerd_fonts: true,
+            color_mode: "auto".to_string(),
             pending_clear: false,
             help_scroll: 0,
             commands_help_scroll: 0,
@@ -1216,6 +1219,7 @@ impl App {
             self.scroll_lines,
             &self.command_prefix,
             self.nerd_fonts,
+            &self.color_mode,
             &self.available_models,
         );
         self.overlay = Overlay::Settings(panel);
@@ -1280,8 +1284,14 @@ impl App {
             if let Some(v) = panel.get_value("ui.nerd_fonts") {
                 self.nerd_fonts = v == "on";
             }
-            // Apply theme instantly
-            self.theme = Theme::from_config(&self.config_theme, &self.config_themes);
+            if let Some(v) = panel.get_value("ui.color_mode") {
+                self.color_mode = v;
+            }
+            // Apply theme instantly (with colour degradation)
+            let resolved = crate::theme::resolve_color_mode(&self.color_mode);
+            self.theme =
+                Theme::from_config(&self.config_theme, &self.config_themes)
+                    .adapt_to_color_mode(resolved);
 
             // Write to config file
             self.write_config_file();
@@ -1313,6 +1323,7 @@ impl App {
         config.ui.scroll_lines = self.scroll_lines;
         config.ui.command_prefix = self.command_prefix.clone();
         config.ui.nerd_fonts = self.nerd_fonts;
+        config.ui.color_mode = self.color_mode.clone();
         if !self.default_provider.is_empty() {
             config.defaults.provider = Some(self.default_provider.clone());
         }
@@ -1651,7 +1662,10 @@ impl App {
         // Theme
         self.config_themes = config.themes.clone();
         self.config_theme = config.theme.clone();
-        self.theme = Theme::from_config(&config.theme, &config.themes);
+        self.color_mode = config.ui.color_mode.clone();
+        let resolved = crate::theme::resolve_color_mode(&self.color_mode);
+        self.theme = Theme::from_config(&config.theme, &config.themes)
+            .adapt_to_color_mode(resolved);
 
         // Editor
         self.editor_command = config.editor.clone();

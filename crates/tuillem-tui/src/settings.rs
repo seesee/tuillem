@@ -93,6 +93,7 @@ impl SettingsPanel {
         scroll_lines: u16,
         command_prefix: &str,
         nerd_fonts: bool,
+        color_mode: &str,
         available_models: &[(String, Vec<String>)],
     ) -> Self {
         // Build model list for current provider
@@ -250,6 +251,24 @@ impl SettingsPanel {
                 label: "Nerd Fonts".to_string(),
                 key: "ui.nerd_fonts".to_string(),
                 value: SettingValue::Bool(nerd_fonts),
+            },
+            SettingItem {
+                label: "Color Mode".to_string(),
+                key: "ui.color_mode".to_string(),
+                value: SettingValue::Enum {
+                    options: vec![
+                        "auto".to_string(),
+                        "truecolor".to_string(),
+                        "256".to_string(),
+                        "basic".to_string(),
+                    ],
+                    selected: match color_mode {
+                        "truecolor" => 1,
+                        "256" => 2,
+                        "basic" => 3,
+                        _ => 0,
+                    },
+                },
             },
             SettingItem {
                 label: "System Prompt".to_string(),
