@@ -8,10 +8,10 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-tuillem-config = { path = "../tuillem-config", version = "0.1.0" }
-tuillem-db = { path = "../tuillem-db", version = "0.1.0" }
-tuillem-provider = { path = "../tuillem-provider", version = "0.1.0" }
-tuillem-plugin = { path = "../tuillem-plugin", version = "0.1.0" }
+tuillem-config = { path = "../tuillem-config", version = "0.1.1" }
+tuillem-db = { path = "../tuillem-db", version = "0.1.1" }
+tuillem-provider = { path = "../tuillem-provider", version = "0.1.1" }
+tuillem-plugin = { path = "../tuillem-plugin", version = "0.1.1" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
