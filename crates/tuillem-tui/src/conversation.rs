@@ -205,40 +205,36 @@ impl Conversation {
                             .max()
                             .unwrap_or(0);
                         let text_style = Style::default().fg(theme.fg).bg(theme.user_msg_bg);
-                        let fill_style = Style::default().bg(theme.user_msg_bg);
-                        // Powerline rounded caps for top/bottom
-                        let cap_open = "\u{E0B6}";
-                        let cap_close = "\u{E0B4}";
-                        let cap_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
-                        let inner_w = max_line_w + 4; // 2 space padding each side
+                        let bubble_w = max_line_w + 4; // 2 space padding each side
+                        // Top edge: ▄ with fg=bubble draws lower-half block = curved top
+                        let top_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
+                        // Bottom edge: ▀ with fg=bubble draws upper-half block = curved bottom
+                        let bottom_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
 
-                        // Top line (rounded caps + blank fill)
+                        // Top edge (half-block curve into solid)
                         msg_lines.push(
-                            Line::from(vec![
-                                Span::styled(cap_open.to_string(), cap_style),
-                                Span::styled(" ".repeat(inner_w), fill_style),
-                                Span::styled(cap_close.to_string(), cap_style),
-                            ])
+                            Line::from(Span::styled(
+                                "▄".repeat(bubble_w),
+                                top_style,
+                            ))
                             .alignment(Alignment::Right),
                         );
 
-                        // Message content lines (no side caps — just padded bg extending full width)
+                        // Message content lines (solid background, no side chars)
                         for ml in &wrapped_lines {
-                            // Extra space on left to align with cap width
-                            let padded = format!(" {:width$}  ", ml, width = max_line_w + 3);
+                            let padded = format!("  {:width$}  ", ml, width = max_line_w);
                             msg_lines.push(
                                 Line::from(Span::styled(padded, text_style))
                                     .alignment(Alignment::Right),
                             );
                         }
 
-                        // Bottom line (rounded caps + blank fill)
+                        // Bottom edge (half-block curve out of solid)
                         msg_lines.push(
-                            Line::from(vec![
-                                Span::styled(cap_open.to_string(), cap_style),
-                                Span::styled(" ".repeat(inner_w), fill_style),
-                                Span::styled(cap_close.to_string(), cap_style),
-                            ])
+                            Line::from(Span::styled(
+                                "▀".repeat(bubble_w),
+                                bottom_style,
+                            ))
                             .alignment(Alignment::Right),
                         );
                     } else {
