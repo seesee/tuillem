@@ -204,35 +204,34 @@ impl Conversation {
                             .map(|l| tuillem_markdown::width::terminal_width(l))
                             .max()
                             .unwrap_or(0);
-                        let inner_w = max_line_w + 4; // 2 space padding each side
-                        let bubble_style = Style::default().fg(theme.border).bg(theme.user_msg_bg);
+                        let bubble_w = max_line_w + 4; // 2 space padding each side
                         let text_style = Style::default().fg(theme.fg).bg(theme.user_msg_bg);
+                        // Top edge: ▄ chars with fg=bubble_bg (draws coloured bottom-half blocks)
+                        let top_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
+                        // Bottom edge: ▀ chars with fg=bubble_bg (draws coloured top-half blocks)
+                        let bottom_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
 
-                        // Top border: ╭───╮ with bg fill
+                        // Top rounded edge
                         msg_lines.push(
                             Line::from(Span::styled(
-                                format!("╭{}╮", "─".repeat(inner_w)),
-                                bubble_style,
+                                "▄".repeat(bubble_w),
+                                top_style,
                             ))
                             .alignment(Alignment::Right),
                         );
-                        // Message lines with side borders and extra padding: │  text  │
+                        // Message lines with solid background fill
                         for ml in &wrapped_lines {
                             let padded = format!("  {:width$}  ", ml, width = max_line_w);
                             msg_lines.push(
-                                Line::from(vec![
-                                    Span::styled("│", bubble_style),
-                                    Span::styled(padded, text_style),
-                                    Span::styled("│", bubble_style),
-                                ])
-                                .alignment(Alignment::Right),
+                                Line::from(Span::styled(padded, text_style))
+                                    .alignment(Alignment::Right),
                             );
                         }
-                        // Bottom border: ╰───╯ with bg fill
+                        // Bottom rounded edge
                         msg_lines.push(
                             Line::from(Span::styled(
-                                format!("╰{}╯", "─".repeat(inner_w)),
-                                bubble_style,
+                                "▀".repeat(bubble_w),
+                                bottom_style,
                             ))
                             .alignment(Alignment::Right),
                         );
