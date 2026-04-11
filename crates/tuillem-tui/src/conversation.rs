@@ -69,6 +69,7 @@ impl Conversation {
         focused: bool,
         theme: &Theme,
         layout: &str,
+        nerd_fonts: bool,
     ) {
         let is_loose = layout == "loose";
         let margin: usize = if is_loose { 2 } else { 0 };
@@ -211,10 +212,11 @@ impl Conversation {
                         // Bottom edge: ▀ with fg=bubble draws upper-half block = curved bottom
                         let bottom_style = Style::default().fg(theme.user_msg_bg).bg(theme.bg);
 
-                        // Top edge: powerline arc left corner + half-block fill
+                        // Top edge
+                        let top_corner = if nerd_fonts { "\u{E0B8}" } else { "▄" };
                         msg_lines.push(
                             Line::from(vec![
-                                Span::styled("\u{E0B8}", top_style),
+                                Span::styled(top_corner.to_string(), top_style),
                                 Span::styled("▄".repeat(bubble_w - 1), top_style),
                             ])
                             .alignment(Alignment::Right),
@@ -229,10 +231,11 @@ impl Conversation {
                             );
                         }
 
-                        // Bottom edge: powerline arc left corner + half-block fill
+                        // Bottom edge
+                        let bottom_corner = if nerd_fonts { "\u{E0BA}" } else { "▀" };
                         msg_lines.push(
                             Line::from(vec![
-                                Span::styled("\u{E0BA}", bottom_style),
+                                Span::styled(bottom_corner.to_string(), bottom_style),
                                 Span::styled("▀".repeat(bubble_w - 1), bottom_style),
                             ])
                             .alignment(Alignment::Right),

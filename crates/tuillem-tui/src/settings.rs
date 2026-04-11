@@ -92,6 +92,7 @@ impl SettingsPanel {
         date_format: &str,
         scroll_lines: u16,
         command_prefix: &str,
+        nerd_fonts: bool,
         available_models: &[(String, Vec<String>)],
     ) -> Self {
         // Build model list for current provider
@@ -244,6 +245,11 @@ impl SettingsPanel {
                 label: "Command Prefix".to_string(),
                 key: "ui.command_prefix".to_string(),
                 value: SettingValue::Text(command_prefix.to_string()),
+            },
+            SettingItem {
+                label: "Nerd Fonts".to_string(),
+                key: "ui.nerd_fonts".to_string(),
+                value: SettingValue::Bool(nerd_fonts),
             },
             SettingItem {
                 label: "System Prompt".to_string(),

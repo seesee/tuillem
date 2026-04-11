@@ -101,6 +101,8 @@ pub struct App {
     pub sidebar_collapsed: bool,
     /// Prefix for slash commands (default "/"). Empty string disables commands.
     pub command_prefix: String,
+    /// Use Nerd Font / Powerline glyphs for bubble corners (default true).
+    pub nerd_fonts: bool,
     /// Set when /clear is issued; next Enter confirms.
     pub pending_clear: bool,
     /// Scroll offset for the keyboard help overlay.
@@ -153,6 +155,7 @@ impl App {
             sidebar_renaming: None,
             sidebar_collapsed: false,
             command_prefix: "/".to_string(),
+            nerd_fonts: true,
             pending_clear: false,
             help_scroll: 0,
             commands_help_scroll: 0,
@@ -229,6 +232,7 @@ impl App {
             self.focus == Focus::Conversation,
             &self.theme,
             &self.layout,
+            self.nerd_fonts,
         );
 
         if show_stats_bar {
@@ -1211,6 +1215,7 @@ impl App {
             &self.date_format,
             self.scroll_lines,
             &self.command_prefix,
+            self.nerd_fonts,
             &self.available_models,
         );
         self.overlay = Overlay::Settings(panel);
@@ -1272,6 +1277,9 @@ impl App {
             if let Some(v) = panel.get_value("ui.command_prefix") {
                 self.command_prefix = if v == "(empty)" { String::new() } else { v };
             }
+            if let Some(v) = panel.get_value("ui.nerd_fonts") {
+                self.nerd_fonts = v == "on";
+            }
             // Apply theme instantly
             self.theme = Theme::from_config(&self.config_theme, &self.config_themes);
 
@@ -1304,6 +1312,7 @@ impl App {
         config.ui.date_format = self.date_format.clone();
         config.ui.scroll_lines = self.scroll_lines;
         config.ui.command_prefix = self.command_prefix.clone();
+        config.ui.nerd_fonts = self.nerd_fonts;
         if !self.default_provider.is_empty() {
             config.defaults.provider = Some(self.default_provider.clone());
         }
@@ -1663,6 +1672,7 @@ impl App {
         self.date_format = config.ui.date_format.clone();
         self.scroll_lines = config.ui.scroll_lines;
         self.command_prefix = config.ui.command_prefix.clone();
+        self.nerd_fonts = config.ui.nerd_fonts;
 
         // Defaults
         self.default_provider = config.defaults.provider.clone().unwrap_or_else(|| {
