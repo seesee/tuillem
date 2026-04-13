@@ -1045,7 +1045,13 @@ impl App {
     fn handle_input_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Enter => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                debug!(
+                    "Enter pressed: modifiers={:?}, kind={:?}",
+                    key.modifiers, key.kind
+                );
+                if key.modifiers.contains(KeyModifiers::SHIFT)
+                    || key.modifiers.contains(KeyModifiers::ALT)
+                {
                     self.input.insert_char('\n');
                 } else if self.input.content.trim().is_empty() {
                     // Empty input: advance scroll (works during and after streaming)

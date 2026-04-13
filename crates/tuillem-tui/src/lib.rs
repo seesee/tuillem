@@ -11,7 +11,10 @@ pub mod theme;
 use std::time::Duration;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CrosstermEvent},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event as CrosstermEvent,
+        KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -31,6 +34,14 @@ pub async fn run(
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
+
+    // Enable keyboard enhancement for Shift+Enter detection
+    let keyboard_enhanced = execute!(
+        stdout,
+        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES)
+    )
+    .is_ok();
+
     if mouse_enabled {
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     } else {
@@ -82,6 +93,9 @@ pub async fn run(
     }
 
     // Cleanup
+    if keyboard_enhanced {
+        let _ = execute!(terminal.backend_mut(), PopKeyboardEnhancementFlags);
+    }
     disable_raw_mode()?;
     if mouse_enabled {
         execute!(
