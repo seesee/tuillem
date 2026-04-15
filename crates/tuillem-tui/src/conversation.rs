@@ -531,9 +531,14 @@ impl Conversation {
             let max_scroll = self.total_lines.saturating_sub(self.visible_height) as usize;
             let mut scrollbar_state =
                 ScrollbarState::new(max_scroll).position(self.scroll_offset as usize);
+            let thumb_color = if focused {
+                theme.accent
+            } else {
+                theme.thinking_fg
+            };
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .track_style(Style::default().fg(theme.border))
-                .thumb_style(Style::default().fg(theme.accent));
+                .thumb_style(Style::default().fg(thumb_color));
             frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
         }
 

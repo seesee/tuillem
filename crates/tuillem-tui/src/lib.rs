@@ -12,8 +12,9 @@ use std::time::Duration;
 
 use crossterm::{
     event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event as CrosstermEvent,
-        KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+        self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+        Event as CrosstermEvent, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+        PushKeyboardEnhancementFlags,
     },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -31,6 +32,12 @@ pub async fn run(
     mut event_rx: mpsc::UnboundedReceiver<Event>,
     mouse_enabled: bool,
 ) -> anyhow::Result<()> {
+    // Check minimum terminal size (80x24)
+    let (cols, rows) = crossterm::terminal::size()?;
+    if cols < 60 || rows < 20 {
+        anyhow::bail!("Terminal too small ({cols}x{rows}). Minimum size is 60x20.");
+    }
+
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -43,9 +50,14 @@ pub async fn run(
     .is_ok();
 
     if mouse_enabled {
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        execute!(
+            stdout,
+            EnterAlternateScreen,
+            EnableMouseCapture,
+            EnableBracketedPaste
+        )?;
     } else {
-        execute!(stdout, EnterAlternateScreen)?;
+        execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
     }
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -83,6 +95,9 @@ pub async fn run(
                 CrosstermEvent::Mouse(mouse) => {
                     app.handle_mouse_event(mouse);
                 }
+                CrosstermEvent::Paste(text) => {
+                    app.handle_paste(text);
+                }
                 _ => {}
             }
         }
@@ -101,10 +116,15 @@ pub async fn run(
         execute!(
             terminal.backend_mut(),
             DisableMouseCapture,
+            DisableBracketedPaste,
             LeaveAlternateScreen
         )?;
     } else {
-        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        execute!(
+            terminal.backend_mut(),
+            DisableBracketedPaste,
+            LeaveAlternateScreen
+        )?;
     }
     terminal.show_cursor()?;
 

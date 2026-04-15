@@ -321,9 +321,30 @@ impl Sidebar {
             let mut scrollbar_state =
                 ScrollbarState::new(total_sessions.saturating_sub(self.visible_count))
                     .position(self.scroll_offset);
+            let thumb_color = if focused {
+                theme.accent
+            } else {
+                theme.thinking_fg
+            };
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .style(Style::default().fg(theme.thinking_fg));
+                .track_style(Style::default().fg(theme.border))
+                .thumb_style(Style::default().fg(thumb_color));
             frame.render_stateful_widget(scrollbar, list_area, &mut scrollbar_state);
+        }
+    }
+
+    /// Adjust scroll_offset so that `self.selected` is visible.
+    pub fn ensure_visible(&mut self) {
+        if self.selected < self.scroll_offset {
+            self.scroll_offset = self.selected;
+        }
+        let visible = if self.visible_count > 0 {
+            self.visible_count
+        } else {
+            10
+        };
+        if self.selected >= self.scroll_offset + visible {
+            self.scroll_offset = self.selected + 1 - visible;
         }
     }
 
@@ -371,22 +392,18 @@ fn date_group_label(updated_at: &str, today: NaiveDate, date_format: &str) -> St
 
     let days_ago = (today - date).num_days();
 
+    let chrono_fmt = match date_format {
+        "yyyy-mm-dd" => "%Y-%m-%d",
+        "mm/dd/yyyy" => "%m/%d/%Y",
+        "dd.mm.yyyy" => "%d.%m.%Y",
+        "dd/mm/yyyy" => "%d/%m/%Y",
+        _ => "%d/%m/%Y",
+    };
+
     match days_ago {
         0 => "Today".to_string(),
         1 => "Yesterday".to_string(),
         2..=6 => date.format("%A").to_string(), // e.g. "Monday"
-        7..=13 => "Last Week".to_string(),
-        14..=29 => "This Month".to_string(),
-        _ => {
-            // Use configured date format for older entries
-            let chrono_fmt = match date_format {
-                "yyyy-mm-dd" => "%Y-%m-%d",
-                "mm/dd/yyyy" => "%m/%d/%Y",
-                "dd.mm.yyyy" => "%d.%m.%Y",
-                "dd/mm/yyyy" => "%d/%m/%Y",
-                _ => "%d/%m/%Y",
-            };
-            date.format(chrono_fmt).to_string()
-        }
+        _ => date.format(chrono_fmt).to_string(),
     }
 }

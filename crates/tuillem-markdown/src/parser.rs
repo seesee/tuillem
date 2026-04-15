@@ -22,6 +22,7 @@ pub enum MdElement {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ListItem {
     pub content: Vec<InlineElement>,
+    pub children: Vec<MdElement>, // nested lists, code blocks, etc.
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -153,12 +154,31 @@ fn collect_list_items<'a>(node: &'a AstNode<'a>) -> Vec<ListItem> {
     for child in node.children() {
         if matches!(&child.data.borrow().value, NodeValue::Item(_)) {
             let mut content = Vec::new();
+            let mut children = Vec::new();
             for sub in child.children() {
-                if matches!(&sub.data.borrow().value, NodeValue::Paragraph) {
-                    content.extend(collect_inlines(sub));
+                let sub_val = &sub.data.borrow().value.clone();
+                match sub_val {
+                    NodeValue::Paragraph => {
+                        content.extend(collect_inlines(sub));
+                    }
+                    NodeValue::List(list) => {
+                        let sub_items = collect_list_items(sub);
+                        if list.list_type == comrak::nodes::ListType::Ordered {
+                            children.push(MdElement::OrderedList(sub_items));
+                        } else {
+                            children.push(MdElement::List(sub_items));
+                        }
+                    }
+                    NodeValue::CodeBlock(cb) => {
+                        children.push(MdElement::CodeBlock {
+                            language: cb.info.clone(),
+                            code: cb.literal.clone(),
+                        });
+                    }
+                    _ => {}
                 }
             }
-            items.push(ListItem { content });
+            items.push(ListItem { content, children });
         }
     }
     items
@@ -244,6 +264,27 @@ mod tests {
         match &elements[0] {
             MdElement::List(items) => assert_eq!(items.len(), 3),
             _ => panic!("expected list"),
+        }
+    }
+
+    #[test]
+    fn test_parse_nested_list() {
+        let md = "1. First\n2. Second\n   - sub-a\n   - sub-b\n3. Third";
+        let elements = parse(md);
+        match &elements[0] {
+            MdElement::OrderedList(items) => {
+                assert_eq!(items.len(), 3);
+                // Item 2 should have a nested bullet list
+                assert_eq!(items[1].children.len(), 1);
+                match &items[1].children[0] {
+                    MdElement::List(sub) => assert_eq!(sub.len(), 2),
+                    other => panic!("expected nested List, got {:?}", other),
+                }
+                // Items 1 and 3 should have no children
+                assert!(items[0].children.is_empty());
+                assert!(items[2].children.is_empty());
+            }
+            _ => panic!("expected ordered list"),
         }
     }
 }

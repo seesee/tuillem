@@ -75,6 +75,10 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme, scroll: u16) {
             Span::styled("  Ctrl+L    ", normal),
             Span::styled("Toggle sidebar", dim),
         ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+G    ", normal),
+            Span::styled("Redraw screen", dim),
+        ]),
         Line::from(""),
         Line::from(Span::styled("Input", accent)),
         Line::from(vec![
@@ -82,7 +86,7 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme, scroll: u16) {
             Span::styled("Send message (or advance N lines if empty)", dim),
         ]),
         Line::from(vec![
-            Span::styled("  Shift+Ent ", normal),
+            Span::styled("  Alt+Enter ", normal),
             Span::styled("Insert newline", dim),
         ]),
         Line::from(vec![
@@ -190,6 +194,6 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme, scroll: u16) {
 pub fn help_max_scroll(area: Rect) -> u16 {
     let popup_height = 38u16.min(area.height.saturating_sub(4));
     let inner_height = popup_height.saturating_sub(2);
-    let total_lines: u16 = 37; // number of lines in the help content
+    let total_lines: u16 = 38; // number of lines in the help content
     total_lines.saturating_sub(inner_height)
 }

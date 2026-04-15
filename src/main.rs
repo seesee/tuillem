@@ -3,31 +3,37 @@ mod setup;
 use anyhow::Result;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info};
+use tracing::debug;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 1. Logging to file (not terminal, since we own the screen)
-    let log_dir = directories::ProjectDirs::from("com", "tuillem", "tuillem")
-        .map(|d| d.data_dir().to_path_buf())
-        .unwrap_or_else(|| std::path::PathBuf::from("."));
-    std::fs::create_dir_all(&log_dir)?;
-    let log_path = log_dir.join("tuillem.log");
-    let log_file = std::fs::File::create(&log_path)?;
+    let debug_mode = std::env::args().any(|a| a == "--debug");
 
-    // Enable DEBUG level for tuillem crates, INFO for everything else
-    use tracing_subscriber::EnvFilter;
-    tracing_subscriber::fmt()
-        .with_writer(log_file)
-        .with_ansi(false)
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                EnvFilter::new("tuillem=debug,tuillem_core=debug,tuillem_db=debug,tuillem_provider=debug,tuillem_plugin=debug,tuillem_tui=debug,tuillem_config=debug,info")
-            }),
-        )
-        .init();
+    // 1. Logging to file (only when --debug is passed)
+    if debug_mode {
+        let log_dir = directories::ProjectDirs::from("com", "tuillem", "tuillem")
+            .map(|d| d.data_dir().to_path_buf())
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        std::fs::create_dir_all(&log_dir)?;
+        let log_path = log_dir.join("tuillem.log");
+        let log_file = std::fs::File::create(&log_path)?;
 
-    info!("tuillem starting — log file: {}", log_path.display());
+        use tracing_subscriber::EnvFilter;
+        tracing_subscriber::fmt()
+            .with_writer(log_file)
+            .with_ansi(false)
+            .with_env_filter(
+                EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                    EnvFilter::new("tuillem=debug,tuillem_core=debug,tuillem_db=debug,tuillem_provider=debug,tuillem_plugin=debug,tuillem_tui=debug,tuillem_config=debug,tuillem_markdown=debug")
+                }),
+            )
+            .init();
+
+        debug!(
+            "tuillem starting (debug mode) — log file: {}",
+            log_path.display()
+        );
+    }
 
     // 2. Load config
     let config_path = tuillem_config::Config::default_path();
@@ -36,7 +42,7 @@ async fn main() -> Result<()> {
         debug!("Config file found, loading...");
         tuillem_config::Config::from_file(&config_path)?
     } else {
-        info!(
+        debug!(
             "No config found at {}. Running setup wizard.",
             config_path.display()
         );
@@ -67,7 +73,7 @@ async fn main() -> Result<()> {
         );
         match tuillem_provider::create_provider(pc) {
             Ok(p) => {
-                info!(
+                debug!(
                     "Provider '{}' initialized with {} models",
                     pc.name,
                     p.models().len()
@@ -75,7 +81,7 @@ async fn main() -> Result<()> {
                 providers.insert(pc.name.clone(), p);
             }
             Err(e) => {
-                error!("Failed to initialize provider '{}': {}", pc.name, e);
+                debug!("Failed to initialize provider '{}': {}", pc.name, e);
             }
         }
     }
@@ -190,9 +196,9 @@ async fn main() -> Result<()> {
             .enable_all()
             .build()
             .expect("Failed to build coordinator runtime");
-        info!("Coordinator thread started");
+        debug!("Coordinator thread started");
         rt.block_on(coordinator.run(action_rx, event_tx));
-        info!("Coordinator thread exiting");
+        debug!("Coordinator thread exiting");
     });
 
     // 13. Run TUI (blocks until quit)

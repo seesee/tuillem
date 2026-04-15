@@ -50,7 +50,7 @@ impl Input {
                 Style::default().fg(theme.thinking_fg),
             ),
             Span::styled(
-                " Enter:send | S-Ent:newline | C-e:editor | C-k:commands | C-h:help ",
+                " Enter:send | Alt-Ent:newline | C-e:editor | C-k:commands | C-h:help ",
                 Style::default().fg(theme.thinking_fg),
             ),
         ]);
@@ -75,18 +75,25 @@ impl Input {
                 Style::default().fg(theme.thinking_fg).bg(theme.bg),
             ))
         } else {
-            Paragraph::new(self.content.as_str().to_owned())
+            Paragraph::new(ratatui::text::Text::from(self.content.as_str().to_owned()))
                 .style(Style::default().fg(theme.fg).bg(theme.bg))
                 .wrap(Wrap { trim: false })
         };
+
+        // Scroll the input so the cursor line is always visible
+        let (cx, cy) = compute_cursor_pos(&self.content, self.cursor_pos, inner.width as usize);
+        let input_scroll = if cy as u16 >= inner.height {
+            (cy as u16) - inner.height + 1
+        } else {
+            0
+        };
+        let display = display.scroll((input_scroll, 0));
         frame.render_widget(display, inner);
 
         // Show cursor — simulate ratatui's word wrapping to find cursor position
         if self.focused && inner.width > 0 && inner.height > 0 {
-            let wrap_width = inner.width as usize;
-            let (cx, cy) = compute_cursor_pos(&self.content, self.cursor_pos, wrap_width);
             let cursor_x = inner.x + cx as u16;
-            let cursor_y = inner.y + cy as u16;
+            let cursor_y = inner.y + (cy as u16).saturating_sub(input_scroll);
             if cursor_x < inner.x + inner.width && cursor_y < inner.y + inner.height {
                 frame.set_cursor_position((cursor_x, cursor_y));
             }
@@ -96,6 +103,11 @@ impl Input {
     pub fn insert_char(&mut self, c: char) {
         self.content.insert(self.cursor_pos, c);
         self.cursor_pos += c.len_utf8();
+    }
+
+    pub fn insert_str(&mut self, s: &str) {
+        self.content.insert_str(self.cursor_pos, s);
+        self.cursor_pos += s.len();
     }
 
     pub fn delete_char(&mut self) {
@@ -149,6 +161,55 @@ impl Input {
 
     pub fn move_end(&mut self) {
         self.cursor_pos = self.content.len();
+    }
+
+    /// Move cursor up one line. Returns false if already on the first line.
+    pub fn move_up(&mut self) -> bool {
+        let before = &self.content[..self.cursor_pos];
+        if let Some(nl_pos) = before.rfind('\n') {
+            // Column offset on current line
+            let col = before[nl_pos + 1..].chars().count();
+            // Find start of previous line
+            let prev_line_start = before[..nl_pos].rfind('\n').map_or(0, |p| p + 1);
+            let prev_line = &self.content[prev_line_start..nl_pos];
+            let target_col = col.min(prev_line.chars().count());
+            self.cursor_pos = prev_line_start
+                + prev_line
+                    .chars()
+                    .take(target_col)
+                    .map(|c| c.len_utf8())
+                    .sum::<usize>();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Move cursor down one line. Returns false if already on the last line.
+    pub fn move_down(&mut self) -> bool {
+        let after = &self.content[self.cursor_pos..];
+        if let Some(nl_offset) = after.find('\n') {
+            // Column offset on current line
+            let before = &self.content[..self.cursor_pos];
+            let current_line_start = before.rfind('\n').map_or(0, |p| p + 1);
+            let col = before[current_line_start..].chars().count();
+            // Next line starts after the newline
+            let next_line_start = self.cursor_pos + nl_offset + 1;
+            let next_line_end = self.content[next_line_start..]
+                .find('\n')
+                .map_or(self.content.len(), |p| next_line_start + p);
+            let next_line = &self.content[next_line_start..next_line_end];
+            let target_col = col.min(next_line.chars().count());
+            self.cursor_pos = next_line_start
+                + next_line
+                    .chars()
+                    .take(target_col)
+                    .map(|c| c.len_utf8())
+                    .sum::<usize>();
+            true
+        } else {
+            false
+        }
     }
 
     /// Take the content out, resetting the input. Returns the taken content.

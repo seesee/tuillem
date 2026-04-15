@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use tracing::{debug, error, info};
+use tracing::debug;
 
 use tuillem_db::Db;
 use tuillem_db::messages::{NewBlock, NewMessage};
@@ -55,7 +55,7 @@ impl Coordinator {
         mut action_rx: mpsc::UnboundedReceiver<Action>,
         event_tx: mpsc::UnboundedSender<Event>,
     ) {
-        info!("Coordinator run() started, waiting for actions...");
+        debug!("Coordinator run() started, waiting for actions...");
         // On startup, load sessions and select the most recent one
         if let Ok(sessions_with_preview) = self.db.list_sessions_with_preview() {
             debug!(
@@ -94,7 +94,7 @@ impl Coordinator {
                         });
                     }
                     Err(e) => {
-                        error!("Failed to create session: {e}");
+                        debug!("Failed to create session: {e}");
                     }
                 },
 
@@ -107,7 +107,7 @@ impl Coordinator {
 
                 Action::DeleteSession { id } => {
                     if let Err(e) = self.db.delete_session(&id) {
-                        error!("Failed to delete session: {e}");
+                        debug!("Failed to delete session: {e}");
                     } else {
                         if self.active_session_id.as_deref() == Some(&id) {
                             self.active_session_id = None;
@@ -118,7 +118,7 @@ impl Coordinator {
 
                 Action::RenameSession { id, title } => {
                     if let Err(e) = self.db.update_session_title(&id, &title) {
-                        error!("Failed to rename session: {e}");
+                        debug!("Failed to rename session: {e}");
                     } else {
                         let _ = event_tx.send(Event::SessionRenamed { id, title });
                     }
@@ -126,7 +126,7 @@ impl Coordinator {
 
                 Action::AddTag { session_id, tag } => {
                     if let Err(e) = self.db.add_session_tag(&session_id, &tag) {
-                        error!("Failed to add tag: {e}");
+                        debug!("Failed to add tag: {e}");
                     } else {
                         self.send_sessions_loaded(&event_tx);
                     }
@@ -134,7 +134,7 @@ impl Coordinator {
 
                 Action::RemoveTag { session_id, tag } => {
                     if let Err(e) = self.db.remove_session_tag(&session_id, &tag) {
-                        error!("Failed to remove tag: {e}");
+                        debug!("Failed to remove tag: {e}");
                     } else {
                         self.send_sessions_loaded(&event_tx);
                     }
@@ -158,7 +158,7 @@ impl Coordinator {
                                 });
                             }
                             Err(e) => {
-                                error!("Failed to auto-create session: {e}");
+                                debug!("Failed to auto-create session: {e}");
                                 let _ = event_tx.send(Event::ResponseError {
                                     error: format!("Failed to create session: {e}"),
                                 });
@@ -167,7 +167,7 @@ impl Coordinator {
                         }
                     }
                     let Some(session_id) = self.active_session_id.clone() else {
-                        error!("No active session after auto-create attempt");
+                        debug!("No active session after auto-create attempt");
                         continue;
                     };
                     self.handle_send_message(&session_id, &content, &event_tx)
@@ -204,7 +204,7 @@ impl Coordinator {
                         let _ = event_tx.send(Event::SearchResults { results: views });
                     }
                     Err(e) => {
-                        error!("Search failed: {e}");
+                        debug!("Search failed: {e}");
                     }
                 },
 
@@ -219,7 +219,7 @@ impl Coordinator {
                 }
 
                 Action::Quit => {
-                    info!("Quit action received, shutting down coordinator");
+                    debug!("Quit action received, shutting down coordinator");
                     break;
                 }
             }
@@ -251,7 +251,7 @@ impl Coordinator {
             sequence: 0,
         }];
         if let Err(e) = self.db.create_message(&user_msg, &user_blocks) {
-            error!("Failed to store user message: {e}");
+            debug!("Failed to store user message: {e}");
             let _ = event_tx.send(Event::ResponseError {
                 error: format!("Failed to store message: {e}"),
             });
@@ -346,7 +346,7 @@ impl Coordinator {
         let db_messages = match self.db.get_session_messages(session_id) {
             Ok(msgs) => msgs,
             Err(e) => {
-                error!("Failed to load messages: {e}");
+                debug!("Failed to load messages: {e}");
                 let _ = event_tx.send(Event::ResponseError {
                     error: format!("Failed to load message history: {e}"),
                 });
@@ -384,7 +384,7 @@ impl Coordinator {
         let provider = match self.providers.get(&self.current_provider) {
             Some(p) => p,
             None => {
-                error!(
+                debug!(
                     "Provider '{}' not found in providers map (available: {:?})",
                     self.current_provider,
                     self.providers.keys().collect::<Vec<_>>()
@@ -414,7 +414,7 @@ impl Coordinator {
                 s
             }
             Err(e) => {
-                error!("Provider.send() failed: {e}");
+                debug!("Provider.send() failed: {e}");
                 let _ = event_tx.send(Event::ResponseError {
                     error: format!("Provider error: {e}"),
                 });
@@ -561,7 +561,7 @@ impl Coordinator {
                 Some(msg.id)
             }
             Err(e) => {
-                error!("Failed to store assistant message: {e}");
+                debug!("Failed to store assistant message: {e}");
                 let _ = event_tx.send(Event::ResponseError {
                     error: format!("Failed to store response: {e}"),
                 });
@@ -730,14 +730,14 @@ impl Coordinator {
         let session = match self.db.get_session(session_id) {
             Ok(s) => s,
             Err(e) => {
-                error!("SaveTranscript: failed to load session: {e}");
+                debug!("SaveTranscript: failed to load session: {e}");
                 return;
             }
         };
         let messages = match self.db.get_session_messages(session_id) {
             Ok(m) => m,
             Err(e) => {
-                error!("SaveTranscript: failed to load messages: {e}");
+                debug!("SaveTranscript: failed to load messages: {e}");
                 return;
             }
         };
@@ -779,10 +779,10 @@ impl Coordinator {
 
         match std::fs::write(&path, &content) {
             Ok(_) => {
-                info!("Transcript saved to {}", path.display());
+                debug!("Transcript saved to {}", path.display());
             }
             Err(e) => {
-                error!("SaveTranscript: failed to write file: {e}");
+                debug!("SaveTranscript: failed to write file: {e}");
             }
         }
     }
@@ -818,7 +818,7 @@ impl Coordinator {
                 let _ = event_tx.send(Event::MessagesLoaded { messages: views });
             }
             Err(e) => {
-                error!("Failed to load messages: {e}");
+                debug!("Failed to load messages: {e}");
             }
         }
     }

@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use tokio::sync::mpsc;
-use tracing::{debug, warn};
+use tracing::debug;
 use tuillem_core::{
     actions::{Action, Event},
     state::AppState,
@@ -81,6 +81,7 @@ pub struct App {
     pub cancel_flag: Arc<AtomicBool>,
     pub input_history: Vec<String>,
     pub history_index: Option<usize>, // None = not browsing history
+    pub history_draft: String,        // stashed draft while browsing history
     // Settings-related config values (used to populate settings panel)
     pub config_themes: std::collections::HashMap<String, tuillem_config::ThemeColors>,
     pub config_theme: String,
@@ -140,6 +141,7 @@ impl App {
             cancel_flag,
             input_history: Vec::new(),
             history_index: None,
+            history_draft: String::new(),
             config_themes: std::collections::HashMap::new(),
             config_theme: "dark".to_string(),
             config_keybindings: "default".to_string(),
@@ -437,6 +439,20 @@ impl App {
     pub fn apply_event(&mut self, event: &Event) {
         self.state.apply_event(event);
 
+        // Keep sidebar selection in sync with the active session after list changes
+        if matches!(
+            event,
+            Event::SessionsLoaded { .. } | Event::SessionCreated { .. }
+        ) && let Some(idx) = self
+            .state
+            .active_session_id
+            .as_ref()
+            .and_then(|id| self.state.sessions.iter().position(|s| s.id == *id))
+        {
+            self.sidebar.selected = idx;
+            self.sidebar.ensure_visible();
+        }
+
         // Update sidebar content matches from search results
         if let Event::SearchResults { results } = event {
             let ids: std::collections::HashSet<String> =
@@ -590,6 +606,10 @@ impl App {
                     self.copy_code_blocks();
                     return;
                 }
+                KeyCode::Char('g') => {
+                    self.needs_redraw = true;
+                    return;
+                }
                 _ => {}
             }
         }
@@ -631,6 +651,12 @@ impl App {
             Focus::Sidebar => self.handle_sidebar_key(key),
             Focus::Conversation => self.handle_conversation_key(key),
             Focus::Input => self.handle_input_key(key),
+        }
+    }
+
+    pub fn handle_paste(&mut self, text: String) {
+        if self.focus == Focus::Input {
+            self.input.insert_str(&text);
         }
     }
 
@@ -1045,10 +1071,6 @@ impl App {
     fn handle_input_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Enter => {
-                debug!(
-                    "Enter pressed: modifiers={:?}, kind={:?}",
-                    key.modifiers, key.kind
-                );
                 if key.modifiers.contains(KeyModifiers::SHIFT)
                     || key.modifiers.contains(KeyModifiers::ALT)
                 {
@@ -1121,7 +1143,7 @@ impl App {
                                 content.len()
                             );
                             if let Err(e) = self.action_tx.send(Action::SendMessage { content }) {
-                                warn!("Failed to send action to coordinator: {e}");
+                                debug!("Failed to send action to coordinator: {e}");
                                 self.state.error =
                                     Some(format!("Internal error: coordinator disconnected ({e})"));
                             }
@@ -1133,10 +1155,14 @@ impl App {
                 self.open_external_editor();
             }
             KeyCode::Up => {
-                self.history_prev();
+                if !self.input.move_up() {
+                    self.history_prev();
+                }
             }
             KeyCode::Down => {
-                self.history_next();
+                if !self.input.move_down() {
+                    self.history_next();
+                }
             }
             KeyCode::Char(c) => {
                 self.input.insert_char(c);
@@ -1376,7 +1402,7 @@ impl App {
                 let _ = std::fs::create_dir_all(parent);
             }
             if let Err(e) = std::fs::write(&config_path, yaml) {
-                warn!("Failed to write config file: {e}");
+                debug!("Failed to write config file: {e}");
             } else {
                 debug!("Settings saved to {}", config_path.display());
             }
@@ -1470,7 +1496,7 @@ impl App {
             // For CreateSession, also reset to default model
             let is_new_session = matches!(action, Action::CreateSession { .. });
             if let Err(e) = self.action_tx.send(action) {
-                warn!("Failed to send command action: {e}");
+                debug!("Failed to send command action: {e}");
                 self.state.error = Some(format!("Internal error: coordinator disconnected ({e})"));
                 return;
             }
@@ -1595,6 +1621,10 @@ impl App {
         if self.input_history.is_empty() {
             return;
         }
+        // Stash current draft when first entering history
+        if self.history_index.is_none() {
+            self.history_draft = self.input.content.clone();
+        }
         let new_idx = match self.history_index {
             None => self.input_history.len() - 1,
             Some(0) => 0,
@@ -1612,9 +1642,10 @@ impl App {
                     self.history_index = Some(i + 1);
                     self.input.set_content(self.input_history[i + 1].clone());
                 } else {
-                    // Past the end — clear to empty
+                    // Past the end — restore draft
                     self.history_index = None;
-                    self.input.set_content(String::new());
+                    self.input
+                        .set_content(std::mem::take(&mut self.history_draft));
                 }
             }
         }

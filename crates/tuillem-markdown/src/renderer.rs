@@ -111,23 +111,11 @@ impl MdRenderer {
                     lines.push(Line::from(""));
                 }
                 MdElement::List(items) => {
-                    let prefix = "   • ";
-                    let indent = "     "; // same width as prefix for continuation
-                    for item in items {
-                        self.render_list_item(&mut lines, prefix, indent, &item.content);
-                    }
+                    self.render_bullet_list(&mut lines, items, 0);
                     lines.push(Line::from(""));
                 }
                 MdElement::OrderedList(items) => {
-                    let max_digits = format!("{}", items.len()).len();
-                    // Indent width = 2 spaces + max_digits + ". " = 2 + max_digits + 2
-                    let indent_width = 2 + max_digits + 2;
-                    let indent: String = " ".repeat(indent_width);
-                    for (idx, item) in items.iter().enumerate() {
-                        let num = idx + 1;
-                        let prefix = format!("  {:>width$}. ", num, width = max_digits);
-                        self.render_list_item(&mut lines, &prefix, &indent, &item.content);
-                    }
+                    self.render_ordered_list(&mut lines, items, 0);
                     lines.push(Line::from(""));
                 }
                 MdElement::BlockQuote(inner) => {
@@ -182,7 +170,7 @@ impl MdRenderer {
         // Verify: total rendered width must not exceed max_width
         let total_rendered = widths.iter().sum::<usize>() + 3 * num_cols + 1;
         if self.max_width > 0 && total_rendered > self.max_width {
-            tracing::warn!(
+            tracing::debug!(
                 "Table width {} exceeds max {}! widths={:?} num_cols={} overhead={}",
                 total_rendered,
                 self.max_width,
@@ -218,6 +206,86 @@ impl MdRenderer {
         )));
     }
 
+    /// Render a bullet list at the given nesting depth.
+    fn render_bullet_list(
+        &self,
+        lines: &mut Vec<Line<'static>>,
+        items: &[crate::parser::ListItem],
+        depth: usize,
+    ) {
+        let base_indent = "   ".repeat(depth);
+        let prefix = format!("{}• ", base_indent);
+        let indent = format!("{}  ", base_indent);
+        for item in items {
+            self.render_list_item(lines, &prefix, &indent, &item.content);
+            self.render_list_children(lines, &item.children, depth);
+        }
+    }
+
+    /// Render an ordered list at the given nesting depth.
+    fn render_ordered_list(
+        &self,
+        lines: &mut Vec<Line<'static>>,
+        items: &[crate::parser::ListItem],
+        depth: usize,
+    ) {
+        let base_indent = "   ".repeat(depth);
+        let max_digits = format!("{}", items.len()).len();
+        let indent_width = base_indent.len() + max_digits + 2;
+        let indent: String = " ".repeat(indent_width);
+        for (idx, item) in items.iter().enumerate() {
+            let num = idx + 1;
+            let prefix = format!("{}{:>width$}. ", base_indent, num, width = max_digits);
+            self.render_list_item(lines, &prefix, &indent, &item.content);
+            self.render_list_children(lines, &item.children, depth);
+        }
+    }
+
+    /// Render nested children (sub-lists, code blocks, etc.) of a list item.
+    fn render_list_children(
+        &self,
+        lines: &mut Vec<Line<'static>>,
+        children: &[MdElement],
+        depth: usize,
+    ) {
+        for child in children {
+            match child {
+                MdElement::List(items) => {
+                    self.render_bullet_list(lines, items, depth + 1);
+                }
+                MdElement::OrderedList(items) => {
+                    self.render_ordered_list(lines, items, depth + 1);
+                }
+                MdElement::CodeBlock { language, code } => {
+                    let pad = "   ".repeat(depth + 1);
+                    let lang_display = if language.is_empty() {
+                        "code"
+                    } else {
+                        language
+                    };
+                    lines.push(Line::from(Span::styled(
+                        format!("{}┌─ {}", pad, lang_display),
+                        Style::default().fg(self.border_color),
+                    )));
+                    let highlighted = HIGHLIGHTER.highlight(code, language);
+                    for hl_spans in highlighted {
+                        let mut line_spans = vec![Span::styled(
+                            format!("{}│ ", pad),
+                            Style::default().fg(self.border_color),
+                        )];
+                        line_spans.extend(hl_spans);
+                        lines.push(Line::from(line_spans));
+                    }
+                    lines.push(Line::from(Span::styled(
+                        format!("{}└─", pad),
+                        Style::default().fg(self.border_color),
+                    )));
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// Render a list item with word-wrapping, indenting continuation lines.
     fn render_list_item(
         &self,
@@ -235,13 +303,11 @@ impl MdRenderer {
             let wrapped = crate::width::wrap_to_width(&text, wrap_width);
             for (i, line_text) in wrapped.iter().enumerate() {
                 if i == 0 {
-                    // First line gets the prefix (bullet or number)
                     lines.push(Line::from(vec![
                         Span::raw(prefix.to_string()),
                         Span::raw(line_text.clone()),
                     ]));
                 } else {
-                    // Continuation lines get the indent
                     lines.push(Line::from(vec![
                         Span::raw(indent.to_string()),
                         Span::raw(line_text.clone()),
@@ -249,7 +315,6 @@ impl MdRenderer {
                 }
             }
         } else {
-            // No max_width — single line
             let mut spans = vec![Span::raw(prefix.to_string())];
             spans.extend(self.inline_to_spans(content));
             lines.push(Line::from(spans));
