@@ -3,7 +3,7 @@ mod setup;
 use anyhow::Result;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
-use tracing::debug;
+use tracing::{debug, error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
                 providers.insert(pc.name.clone(), p);
             }
             Err(e) => {
-                debug!("Failed to initialize provider '{}': {}", pc.name, e);
+                error!("Failed to initialize provider '{}': {}", pc.name, e);
             }
         }
     }
@@ -196,9 +196,9 @@ async fn main() -> Result<()> {
             .enable_all()
             .build()
             .expect("Failed to build coordinator runtime");
-        debug!("Coordinator thread started");
+        info!("Coordinator thread started");
         rt.block_on(coordinator.run(action_rx, event_tx));
-        debug!("Coordinator thread exiting");
+        info!("Coordinator thread exiting");
     });
 
     // 13. Run TUI (blocks until quit)

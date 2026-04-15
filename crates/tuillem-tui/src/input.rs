@@ -362,4 +362,91 @@ mod tests {
         assert_eq!(input.content, "");
         assert_eq!(input.cursor_pos, 0);
     }
+
+    #[test]
+    fn test_insert_str() {
+        let mut input = Input::new();
+        input.insert_str("Hello\nWorld");
+        assert_eq!(input.content, "Hello\nWorld");
+        assert_eq!(input.cursor_pos, 11);
+
+        // Insert in the middle
+        input.cursor_pos = 5;
+        input.insert_str(" there");
+        assert_eq!(input.content, "Hello there\nWorld");
+    }
+
+    #[test]
+    fn test_move_up_down_single_line() {
+        let mut input = Input::new();
+        input.set_content("Hello".to_string());
+
+        // Can't move up or down on a single line
+        assert!(!input.move_up());
+        assert!(!input.move_down());
+    }
+
+    #[test]
+    fn test_move_up_down_multiline() {
+        let mut input = Input::new();
+        input.set_content("abc\ndef\nghi".to_string());
+        // Cursor at end: line 2 ("ghi"), col 3
+        assert_eq!(input.cursor_pos, 11);
+
+        // Move up: line 1 ("def"), col 3
+        assert!(input.move_up());
+        assert_eq!(input.cursor_pos, 7); // "abc\ndef" = 7
+
+        // Move up: line 0 ("abc"), col 3
+        assert!(input.move_up());
+        assert_eq!(input.cursor_pos, 3); // "abc" = 3
+
+        // Can't move up further
+        assert!(!input.move_up());
+        assert_eq!(input.cursor_pos, 3);
+
+        // Move down: line 1, col 3
+        assert!(input.move_down());
+        assert_eq!(input.cursor_pos, 7);
+
+        // Move down: line 2, col 3
+        assert!(input.move_down());
+        assert_eq!(input.cursor_pos, 11);
+
+        // Can't move down further
+        assert!(!input.move_down());
+    }
+
+    #[test]
+    fn test_move_up_clamps_column() {
+        let mut input = Input::new();
+        input.set_content("abcdef\nhi".to_string());
+        // Cursor at end of "hi" (line 1, col 2)
+        assert_eq!(input.cursor_pos, 9);
+
+        // Move up: line 0 has 6 chars, but col is 2 so lands at col 2
+        assert!(input.move_up());
+        assert_eq!(input.cursor_pos, 2);
+
+        // Move down: line 1 has 2 chars, col 2 clamps to end
+        assert!(input.move_down());
+        assert_eq!(input.cursor_pos, 9);
+    }
+
+    #[test]
+    fn test_move_up_down_utf8() {
+        let mut input = Input::new();
+        // "café" is 5 bytes (é = 2 bytes), "hi" is 2 bytes
+        input.set_content("café\nhi".to_string());
+        // Cursor at end
+        assert_eq!(input.cursor_pos, 8); // 5 + 1 + 2
+
+        // Move up from "hi" col 2 → "café" col 2 = byte 2 ("ca")
+        assert!(input.move_up());
+        assert_eq!(input.cursor_pos, 2);
+
+        // Move down from col 2 → "hi" col 2 = byte 8
+        assert!(input.move_down());
+        assert_eq!(input.cursor_pos, 8);
+    }
 }

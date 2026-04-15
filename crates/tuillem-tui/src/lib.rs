@@ -32,7 +32,7 @@ pub async fn run(
     mut event_rx: mpsc::UnboundedReceiver<Event>,
     mouse_enabled: bool,
 ) -> anyhow::Result<()> {
-    // Check minimum terminal size (80x24)
+    // Check minimum terminal size (60x20)
     let (cols, rows) = crossterm::terminal::size()?;
     if cols < 60 || rows < 20 {
         anyhow::bail!("Terminal too small ({cols}x{rows}). Minimum size is 60x20.");

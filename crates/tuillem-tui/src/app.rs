@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use tokio::sync::mpsc;
-use tracing::debug;
+use tracing::{debug, warn};
 use tuillem_core::{
     actions::{Action, Event},
     state::AppState,
@@ -656,6 +656,8 @@ impl App {
 
     pub fn handle_paste(&mut self, text: String) {
         if self.focus == Focus::Input {
+            self.history_index = None;
+            self.history_draft.clear();
             self.input.insert_str(&text);
         }
     }
@@ -1143,7 +1145,7 @@ impl App {
                                 content.len()
                             );
                             if let Err(e) = self.action_tx.send(Action::SendMessage { content }) {
-                                debug!("Failed to send action to coordinator: {e}");
+                                warn!("Failed to send action to coordinator: {e}");
                                 self.state.error =
                                     Some(format!("Internal error: coordinator disconnected ({e})"));
                             }
@@ -1402,7 +1404,7 @@ impl App {
                 let _ = std::fs::create_dir_all(parent);
             }
             if let Err(e) = std::fs::write(&config_path, yaml) {
-                debug!("Failed to write config file: {e}");
+                warn!("Failed to write config file: {e}");
             } else {
                 debug!("Settings saved to {}", config_path.display());
             }
@@ -1496,7 +1498,7 @@ impl App {
             // For CreateSession, also reset to default model
             let is_new_session = matches!(action, Action::CreateSession { .. });
             if let Err(e) = self.action_tx.send(action) {
-                debug!("Failed to send command action: {e}");
+                warn!("Failed to send command action: {e}");
                 self.state.error = Some(format!("Internal error: coordinator disconnected ({e})"));
                 return;
             }
