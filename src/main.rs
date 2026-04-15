@@ -160,6 +160,11 @@ async fn main() -> Result<()> {
         tuillem_config::KeybindingPreset::Default => "default".to_string(),
     };
     app.config_show_thinking = config.ui.show_thinking;
+    if config.ui.show_thinking {
+        let _ = app
+            .action_tx
+            .send(tuillem_core::actions::Action::SetThinking { enabled: true });
+    }
     app.config_show_token_usage = config.ui.show_token_usage;
     app.config_mouse = config.ui.mouse;
     app.config_system_prompt = config.defaults.system_prompt.clone().unwrap_or_default();

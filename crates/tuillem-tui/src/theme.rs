@@ -278,6 +278,256 @@ impl Theme {
     }
 
     /// All built-in theme names.
+    /// Monokai Pro palette (dark).
+    pub fn monokai_pro() -> Self {
+        Self {
+            bg: Color::Rgb(45, 42, 46),                  // #2d2a2e
+            fg: Color::Rgb(252, 252, 248),               // #fcfcf8
+            sidebar_bg: Color::Rgb(34, 32, 35),          // #222023
+            sidebar_fg: Color::Rgb(200, 200, 196),       // #c8c8c4
+            sidebar_selected: Color::Rgb(255, 216, 102), // #ffd866
+            user_msg_bg: Color::Rgb(57, 53, 58),         // #39353a
+            assistant_msg_bg: Color::Rgb(45, 42, 46),    // #2d2a2e
+            thinking_fg: Color::Rgb(114, 113, 115),      // #727173
+            accent: Color::Rgb(255, 216, 102),           // #ffd866
+            error: Color::Rgb(255, 97, 136),             // #ff6188
+            success: Color::Rgb(169, 220, 118),          // #a9dc76
+            warning: Color::Rgb(252, 152, 103),          // #fc9867
+            border: Color::Rgb(73, 69, 74),              // #49454a
+            code_bg: Color::Rgb(34, 32, 35),             // #222023
+            code_fg: Color::Rgb(169, 220, 118),          // #a9dc76
+            heading: Color::Rgb(171, 157, 242),          // #ab9df2
+            link: Color::Rgb(120, 220, 232),             // #78dce8
+            tag: Color::Rgb(171, 157, 242),              // #ab9df2
+            sidebar_selected_bg: Color::Rgb(57, 53, 58), // #39353a
+        }
+    }
+
+    /// Everforest Dark palette.
+    pub fn everforest() -> Self {
+        Self {
+            bg: Color::Rgb(47, 53, 55),                  // #2f3537
+            fg: Color::Rgb(211, 198, 170),               // #d3c6aa
+            sidebar_bg: Color::Rgb(38, 44, 46),          // #262c2e
+            sidebar_fg: Color::Rgb(211, 198, 170),       // #d3c6aa
+            sidebar_selected: Color::Rgb(163, 190, 140), // #a3be8c -> #a7c080
+            user_msg_bg: Color::Rgb(58, 64, 66),         // #3a4042
+            assistant_msg_bg: Color::Rgb(47, 53, 55),    // #2f3537
+            thinking_fg: Color::Rgb(133, 146, 137),      // #859289
+            accent: Color::Rgb(167, 192, 128),           // #a7c080
+            error: Color::Rgb(230, 126, 128),            // #e67e80
+            success: Color::Rgb(167, 192, 128),          // #a7c080
+            warning: Color::Rgb(219, 188, 127),          // #dbbc7f
+            border: Color::Rgb(78, 86, 88),              // #4e5658
+            code_bg: Color::Rgb(38, 44, 46),             // #262c2e
+            code_fg: Color::Rgb(167, 192, 128),          // #a7c080
+            heading: Color::Rgb(214, 153, 182),          // #d699b6
+            link: Color::Rgb(126, 196, 193),             // #7ec4c1
+            tag: Color::Rgb(214, 153, 182),              // #d699b6
+            sidebar_selected_bg: Color::Rgb(58, 64, 66), // #3a4042
+        }
+    }
+
+    /// Kanagawa palette (dark).
+    pub fn kanagawa() -> Self {
+        Self {
+            bg: Color::Rgb(31, 31, 40),                  // #1f1f28
+            fg: Color::Rgb(220, 215, 186),               // #dcd7ba
+            sidebar_bg: Color::Rgb(22, 22, 29),          // #16161d
+            sidebar_fg: Color::Rgb(200, 195, 167),       // #c8c3a7
+            sidebar_selected: Color::Rgb(127, 180, 202), // #7fb4ca
+            user_msg_bg: Color::Rgb(54, 54, 70),         // #363646
+            assistant_msg_bg: Color::Rgb(31, 31, 40),    // #1f1f28
+            thinking_fg: Color::Rgb(114, 113, 105),      // #727169
+            accent: Color::Rgb(127, 180, 202),           // #7fb4ca
+            error: Color::Rgb(195, 64, 67),              // #c34043
+            success: Color::Rgb(152, 187, 108),          // #98bb6c
+            warning: Color::Rgb(255, 169, 73),           // #ffa949
+            border: Color::Rgb(84, 84, 109),             // #54546d
+            code_bg: Color::Rgb(22, 22, 29),             // #16161d
+            code_fg: Color::Rgb(152, 187, 108),          // #98bb6c
+            heading: Color::Rgb(157, 124, 216),          // #9d7cd8
+            link: Color::Rgb(127, 180, 202),             // #7fb4ca
+            tag: Color::Rgb(157, 124, 216),              // #9d7cd8
+            sidebar_selected_bg: Color::Rgb(54, 54, 70), // #363646
+        }
+    }
+
+    /// One Dark palette (Atom).
+    pub fn one_dark() -> Self {
+        Self {
+            bg: Color::Rgb(40, 44, 52),                  // #282c34
+            fg: Color::Rgb(171, 178, 191),               // #abb2bf
+            sidebar_bg: Color::Rgb(33, 37, 43),          // #21252b
+            sidebar_fg: Color::Rgb(171, 178, 191),       // #abb2bf
+            sidebar_selected: Color::Rgb(97, 175, 239),  // #61afef
+            user_msg_bg: Color::Rgb(50, 56, 66),         // #323842
+            assistant_msg_bg: Color::Rgb(40, 44, 52),    // #282c34
+            thinking_fg: Color::Rgb(92, 99, 112),        // #5c6370
+            accent: Color::Rgb(97, 175, 239),            // #61afef
+            error: Color::Rgb(224, 108, 117),            // #e06c75
+            success: Color::Rgb(152, 195, 121),          // #98c379
+            warning: Color::Rgb(229, 192, 123),          // #e5c07b
+            border: Color::Rgb(62, 68, 81),              // #3e4451
+            code_bg: Color::Rgb(33, 37, 43),             // #21252b
+            code_fg: Color::Rgb(152, 195, 121),          // #98c379
+            heading: Color::Rgb(198, 120, 221),          // #c678dd
+            link: Color::Rgb(86, 182, 194),              // #56b6c2
+            tag: Color::Rgb(198, 120, 221),              // #c678dd
+            sidebar_selected_bg: Color::Rgb(50, 56, 66), // #323842
+        }
+    }
+
+    /// Ayu Dark palette.
+    pub fn ayu_dark() -> Self {
+        Self {
+            bg: Color::Rgb(10, 14, 20),                  // #0a0e14
+            fg: Color::Rgb(179, 177, 173),               // #b3b1ad
+            sidebar_bg: Color::Rgb(5, 8, 13),            // #05080d
+            sidebar_fg: Color::Rgb(179, 177, 173),       // #b3b1ad
+            sidebar_selected: Color::Rgb(57, 186, 230),  // #39bae6
+            user_msg_bg: Color::Rgb(22, 27, 34),         // #161b22
+            assistant_msg_bg: Color::Rgb(10, 14, 20),    // #0a0e14
+            thinking_fg: Color::Rgb(94, 101, 111),       // #5e656f
+            accent: Color::Rgb(57, 186, 230),            // #39bae6
+            error: Color::Rgb(255, 51, 51),              // #ff3333
+            success: Color::Rgb(186, 230, 126),          // #bae67e
+            warning: Color::Rgb(255, 180, 84),           // #ffb454
+            border: Color::Rgb(39, 46, 56),              // #272e38
+            code_bg: Color::Rgb(5, 8, 13),               // #05080d
+            code_fg: Color::Rgb(186, 230, 126),          // #bae67e
+            heading: Color::Rgb(217, 191, 255),          // #d9bfff
+            link: Color::Rgb(89, 199, 255),              // #59c7ff
+            tag: Color::Rgb(217, 191, 255),              // #d9bfff
+            sidebar_selected_bg: Color::Rgb(22, 27, 34), // #161b22
+        }
+    }
+
+    /// Rose Pine palette (dark).
+    pub fn rose_pine() -> Self {
+        Self {
+            bg: Color::Rgb(25, 23, 36),                  // #191724
+            fg: Color::Rgb(224, 222, 244),               // #e0def4
+            sidebar_bg: Color::Rgb(18, 17, 28),          // #12111c
+            sidebar_fg: Color::Rgb(224, 222, 244),       // #e0def4
+            sidebar_selected: Color::Rgb(156, 207, 216), // #9ccfd8
+            user_msg_bg: Color::Rgb(38, 35, 53),         // #262335
+            assistant_msg_bg: Color::Rgb(25, 23, 36),    // #191724
+            thinking_fg: Color::Rgb(110, 106, 134),      // #6e6a86
+            accent: Color::Rgb(156, 207, 216),           // #9ccfd8
+            error: Color::Rgb(235, 111, 146),            // #eb6f92
+            success: Color::Rgb(156, 207, 216),          // #9ccfd8
+            warning: Color::Rgb(246, 193, 119),          // #f6c177
+            border: Color::Rgb(57, 53, 82),              // #393552
+            code_bg: Color::Rgb(18, 17, 28),             // #12111c
+            code_fg: Color::Rgb(224, 222, 244),          // #e0def4
+            heading: Color::Rgb(196, 167, 231),          // #c4a7e7
+            link: Color::Rgb(156, 207, 216),             // #9ccfd8
+            tag: Color::Rgb(196, 167, 231),              // #c4a7e7
+            sidebar_selected_bg: Color::Rgb(38, 35, 53), // #262335
+        }
+    }
+
+    /// Everforest Light palette.
+    pub fn everforest_light() -> Self {
+        Self {
+            bg: Color::Rgb(253, 246, 227),                  // #fdf6e3
+            fg: Color::Rgb(92, 107, 99),                    // #5c6b63
+            sidebar_bg: Color::Rgb(239, 239, 224),          // #efefe0
+            sidebar_fg: Color::Rgb(92, 107, 99),            // #5c6b63
+            sidebar_selected: Color::Rgb(53, 165, 78),      // #35a54e
+            user_msg_bg: Color::Rgb(226, 226, 204),         // #e2e2cc
+            assistant_msg_bg: Color::Rgb(253, 246, 227),    // #fdf6e3
+            thinking_fg: Color::Rgb(163, 174, 166),         // #a3aea6
+            accent: Color::Rgb(53, 165, 78),                // #35a54e
+            error: Color::Rgb(243, 113, 93),                // #f3715d
+            success: Color::Rgb(143, 191, 96),              // #8fbf60
+            warning: Color::Rgb(223, 166, 78),              // #dfa64e
+            border: Color::Rgb(195, 195, 175),              // #c3c3af
+            code_bg: Color::Rgb(239, 239, 224),             // #efefe0
+            code_fg: Color::Rgb(92, 107, 99),               // #5c6b63
+            heading: Color::Rgb(181, 126, 162),             // #b57ea2
+            link: Color::Rgb(53, 165, 78),                  // #35a54e
+            tag: Color::Rgb(181, 126, 162),                 // #b57ea2
+            sidebar_selected_bg: Color::Rgb(226, 226, 204), // #e2e2cc
+        }
+    }
+
+    /// Ayu Light palette.
+    pub fn ayu_light() -> Self {
+        Self {
+            bg: Color::Rgb(250, 250, 250),                  // #fafafa
+            fg: Color::Rgb(92, 104, 108),                   // #5c686c
+            sidebar_bg: Color::Rgb(240, 240, 240),          // #f0f0f0
+            sidebar_fg: Color::Rgb(92, 104, 108),           // #5c686c
+            sidebar_selected: Color::Rgb(255, 157, 0),      // #ff9d00
+            user_msg_bg: Color::Rgb(229, 232, 233),         // #e5e8e9
+            assistant_msg_bg: Color::Rgb(250, 250, 250),    // #fafafa
+            thinking_fg: Color::Rgb(171, 179, 182),         // #abb3b6
+            accent: Color::Rgb(255, 157, 0),                // #ff9d00
+            error: Color::Rgb(240, 113, 120),               // #f07178
+            success: Color::Rgb(134, 179, 0),               // #86b300
+            warning: Color::Rgb(250, 138, 46),              // #fa8a2e
+            border: Color::Rgb(209, 215, 217),              // #d1d7d9
+            code_bg: Color::Rgb(240, 240, 240),             // #f0f0f0
+            code_fg: Color::Rgb(134, 179, 0),               // #86b300
+            heading: Color::Rgb(163, 122, 204),             // #a37acc
+            link: Color::Rgb(57, 186, 230),                 // #39bae6
+            tag: Color::Rgb(163, 122, 204),                 // #a37acc
+            sidebar_selected_bg: Color::Rgb(229, 232, 233), // #e5e8e9
+        }
+    }
+
+    /// One Light palette (Atom).
+    pub fn one_light() -> Self {
+        Self {
+            bg: Color::Rgb(250, 250, 250),                  // #fafafa
+            fg: Color::Rgb(56, 58, 66),                     // #383a42
+            sidebar_bg: Color::Rgb(240, 240, 240),          // #f0f0f0
+            sidebar_fg: Color::Rgb(56, 58, 66),             // #383a42
+            sidebar_selected: Color::Rgb(64, 120, 242),     // #4078f2
+            user_msg_bg: Color::Rgb(228, 228, 230),         // #e4e4e6
+            assistant_msg_bg: Color::Rgb(250, 250, 250),    // #fafafa
+            thinking_fg: Color::Rgb(160, 161, 167),         // #a0a1a7
+            accent: Color::Rgb(64, 120, 242),               // #4078f2
+            error: Color::Rgb(228, 86, 73),                 // #e45649
+            success: Color::Rgb(80, 161, 79),               // #50a14f
+            warning: Color::Rgb(193, 132, 1),               // #c18401
+            border: Color::Rgb(202, 202, 206),              // #cacacd
+            code_bg: Color::Rgb(240, 240, 240),             // #f0f0f0
+            code_fg: Color::Rgb(80, 161, 79),               // #50a14f
+            heading: Color::Rgb(166, 38, 164),              // #a626a4
+            link: Color::Rgb(1, 132, 188),                  // #0184bc
+            tag: Color::Rgb(166, 38, 164),                  // #a626a4
+            sidebar_selected_bg: Color::Rgb(228, 228, 230), // #e4e4e6
+        }
+    }
+
+    /// Gruvbox Light palette.
+    pub fn gruvbox_light() -> Self {
+        Self {
+            bg: Color::Rgb(251, 241, 199),                  // #fbf1c7
+            fg: Color::Rgb(60, 56, 54),                     // #3c3836
+            sidebar_bg: Color::Rgb(242, 229, 188),          // #f2e5bc
+            sidebar_fg: Color::Rgb(60, 56, 54),             // #3c3836
+            sidebar_selected: Color::Rgb(215, 153, 33),     // #d79921
+            user_msg_bg: Color::Rgb(235, 219, 178),         // #ebdbb2
+            assistant_msg_bg: Color::Rgb(251, 241, 199),    // #fbf1c7
+            thinking_fg: Color::Rgb(168, 153, 132),         // #a89984
+            accent: Color::Rgb(215, 153, 33),               // #d79921
+            error: Color::Rgb(204, 36, 29),                 // #cc241d
+            success: Color::Rgb(152, 151, 26),              // #98971a
+            warning: Color::Rgb(214, 93, 14),               // #d65d0e
+            border: Color::Rgb(189, 174, 147),              // #bdae93
+            code_bg: Color::Rgb(242, 229, 188),             // #f2e5bc
+            code_fg: Color::Rgb(60, 56, 54),                // #3c3836
+            heading: Color::Rgb(69, 133, 136),              // #458588
+            link: Color::Rgb(69, 133, 136),                 // #458588
+            tag: Color::Rgb(177, 98, 134),                  // #b16286
+            sidebar_selected_bg: Color::Rgb(235, 219, 178), // #ebdbb2
+        }
+    }
+
     pub fn builtin_names() -> &'static [&'static str] {
         &[
             "dark",
@@ -285,11 +535,21 @@ impl Theme {
             "dracula",
             "nord",
             "gruvbox",
+            "gruvbox_light",
             "tokyo_night",
             "solarized",
             "solarized_light",
             "github_light",
+            "rose_pine",
             "rose_pine_dawn",
+            "monokai_pro",
+            "everforest",
+            "everforest_light",
+            "kanagawa",
+            "one_dark",
+            "one_light",
+            "ayu_dark",
+            "ayu_light",
         ]
     }
 
@@ -300,11 +560,21 @@ impl Theme {
             "dracula" => Self::dracula(),
             "nord" => Self::nord(),
             "gruvbox" => Self::gruvbox(),
+            "gruvbox_light" => Self::gruvbox_light(),
             "tokyo_night" => Self::tokyo_night(),
             "solarized" => Self::solarized(),
             "solarized_light" => Self::solarized_light(),
             "github_light" => Self::github_light(),
+            "rose_pine" => Self::rose_pine(),
             "rose_pine_dawn" => Self::rose_pine_dawn(),
+            "monokai_pro" => Self::monokai_pro(),
+            "everforest" => Self::everforest(),
+            "everforest_light" => Self::everforest_light(),
+            "kanagawa" => Self::kanagawa(),
+            "one_dark" => Self::one_dark(),
+            "one_light" => Self::one_light(),
+            "ayu_dark" => Self::ayu_dark(),
+            "ayu_light" => Self::ayu_light(),
             _ => Self::dark(),
         };
         match custom_themes.get(name) {

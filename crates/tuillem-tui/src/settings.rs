@@ -149,31 +149,16 @@ impl SettingsPanel {
             SettingItem {
                 label: "Theme".to_string(),
                 key: "theme".to_string(),
-                value: SettingValue::Enum {
-                    options: vec![
-                        "dark".to_string(),
-                        "light".to_string(),
-                        "dracula".to_string(),
-                        "nord".to_string(),
-                        "gruvbox".to_string(),
-                        "tokyo_night".to_string(),
-                        "solarized".to_string(),
-                        "solarized_light".to_string(),
-                        "github_light".to_string(),
-                        "rose_pine_dawn".to_string(),
-                    ],
-                    selected: match theme_name {
-                        "light" => 1,
-                        "dracula" => 2,
-                        "nord" => 3,
-                        "gruvbox" => 4,
-                        "tokyo_night" => 5,
-                        "solarized" => 6,
-                        "solarized_light" => 7,
-                        "github_light" => 8,
-                        "rose_pine_dawn" => 9,
-                        _ => 0,
-                    },
+                value: {
+                    let names: Vec<String> = Theme::builtin_names()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect();
+                    let selected = names.iter().position(|n| n == theme_name).unwrap_or(0);
+                    SettingValue::Enum {
+                        options: names,
+                        selected,
+                    }
                 },
             },
             SettingItem {

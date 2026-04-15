@@ -20,6 +20,7 @@ pub struct Coordinator {
     current_provider: String,
     current_model: String,
     system_prompt: Option<String>,
+    thinking_enabled: bool,
     active_session_id: Option<String>,
     cancel_flag: Arc<AtomicBool>,
 }
@@ -40,6 +41,7 @@ impl Coordinator {
             current_provider: default_provider,
             current_model: default_model,
             system_prompt,
+            thinking_enabled: false,
             active_session_id: None,
             cancel_flag: Arc::new(AtomicBool::new(false)),
         }
@@ -189,6 +191,10 @@ impl Coordinator {
                     self.current_provider = provider.clone();
                     self.current_model = model.clone();
                     let _ = event_tx.send(Event::ModelSwitched { provider, model });
+                }
+
+                Action::SetThinking { enabled } => {
+                    self.thinking_enabled = enabled;
                 }
 
                 Action::Search { query } => match self.db.search_messages(&query) {
@@ -369,6 +375,7 @@ impl Coordinator {
             system: self.system_prompt.clone(),
             max_tokens: None,
             temperature: None,
+            thinking: self.thinking_enabled,
         })
     }
 
@@ -517,7 +524,7 @@ impl Coordinator {
             });
             seq += 1;
         }
-        if !full_thinking.is_empty() {
+        if !full_thinking.is_empty() && self.thinking_enabled {
             blocks.push(NewBlock {
                 block_type: "thinking",
                 content: &full_thinking,
@@ -636,6 +643,7 @@ impl Coordinator {
             system: Some("You generate short conversation titles. Reply with ONLY the title text — no quotes, no markdown, no explanation, no punctuation at the end.".to_string()),
             max_tokens: Some(50),
             temperature: Some(0.3),
+            thinking: false,
         };
 
         debug!("Auto-renaming session, requesting title from model");

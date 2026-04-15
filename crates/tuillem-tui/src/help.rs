@@ -52,8 +52,12 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme, scroll: u16) {
             Span::styled("Switch model", dim),
         ]),
         Line::from(vec![
-            Span::styled("  Ctrl+T    ", normal),
+            Span::styled("  Ctrl+P    ", normal),
             Span::styled("Switch provider", dim),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+T    ", normal),
+            Span::styled("Toggle thinking mode", dim),
         ]),
         Line::from(vec![
             Span::styled("  Ctrl+S    ", normal),
@@ -88,6 +92,10 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme, scroll: u16) {
         Line::from(vec![
             Span::styled("  Alt+Enter ", normal),
             Span::styled("Insert newline", dim),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+U    ", normal),
+            Span::styled("Clear message box", dim),
         ]),
         Line::from(vec![
             Span::styled("  Ctrl+E    ", normal),
@@ -194,6 +202,6 @@ pub fn render_help(frame: &mut Frame, area: Rect, theme: &Theme, scroll: u16) {
 pub fn help_max_scroll(area: Rect) -> u16 {
     let popup_height = 38u16.min(area.height.saturating_sub(4));
     let inner_height = popup_height.saturating_sub(2);
-    let total_lines: u16 = 38; // number of lines in the help content
+    let total_lines: u16 = 40; // number of lines in the help content
     total_lines.saturating_sub(inner_height)
 }

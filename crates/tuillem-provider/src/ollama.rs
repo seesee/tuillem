@@ -96,6 +96,11 @@ impl Provider for OllamaProvider {
 }
 
 fn parse_ollama_line(line: &str) -> Vec<StreamDelta> {
+    // Track <think> block state via thread-local (safe since each stream runs on one task)
+    thread_local! {
+        static IN_THINK_BLOCK: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
     let mut deltas = Vec::new();
     let line = line.trim();
     if line.is_empty() {
@@ -110,10 +115,39 @@ fn parse_ollama_line(line: &str) -> Vec<StreamDelta> {
         && let Some(content) = message.get("content").and_then(|c| c.as_str())
         && !content.is_empty()
     {
-        deltas.push(StreamDelta::Text(content.to_string()));
+        // Parse <think>...</think> tags used by reasoning models (DeepSeek, etc.)
+        // Always strip tags to prevent them leaking into text; only emit when enabled
+        let mut remaining = content;
+        while !remaining.is_empty() {
+            let in_think = IN_THINK_BLOCK.with(|c| c.get());
+            if in_think {
+                if let Some(end_pos) = remaining.find("</think>") {
+                    let thinking = &remaining[..end_pos];
+                    if !thinking.is_empty() {
+                        deltas.push(StreamDelta::Thinking(thinking.to_string()));
+                    }
+                    IN_THINK_BLOCK.with(|c| c.set(false));
+                    remaining = &remaining[end_pos + 8..];
+                } else {
+                    deltas.push(StreamDelta::Thinking(remaining.to_string()));
+                    remaining = "";
+                }
+            } else if let Some(start_pos) = remaining.find("<think>") {
+                let text = &remaining[..start_pos];
+                if !text.is_empty() {
+                    deltas.push(StreamDelta::Text(text.to_string()));
+                }
+                IN_THINK_BLOCK.with(|c| c.set(true));
+                remaining = &remaining[start_pos + 7..];
+            } else {
+                deltas.push(StreamDelta::Text(remaining.to_string()));
+                remaining = "";
+            }
+        }
     }
 
     if done {
+        IN_THINK_BLOCK.with(|c| c.set(false));
         if let (Some(prompt), Some(eval)) = (
             obj.get("prompt_eval_count").and_then(|v| v.as_u64()),
             obj.get("eval_count").and_then(|v| v.as_u64()),

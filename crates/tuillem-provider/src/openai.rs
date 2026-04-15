@@ -118,11 +118,23 @@ fn parse_openai_line(line: &str) -> Vec<StreamDelta> {
     if let Some(choices) = event.get("choices").and_then(|c| c.as_array())
         && let Some(choice) = choices.first()
     {
-        if let Some(delta) = choice.get("delta")
-            && let Some(content) = delta.get("content").and_then(|c| c.as_str())
-            && !content.is_empty()
-        {
-            deltas.push(StreamDelta::Text(content.to_string()));
+        if let Some(delta) = choice.get("delta") {
+            // Reasoning/thinking content (OpenAI o-series, LM Studio, etc.)
+            if let Some(reasoning) = delta
+                .get("reasoning_content")
+                .and_then(|c| c.as_str())
+                .filter(|s| !s.is_empty())
+            {
+                deltas.push(StreamDelta::Thinking(reasoning.to_string()));
+            }
+            // Regular content
+            if let Some(content) = delta
+                .get("content")
+                .and_then(|c| c.as_str())
+                .filter(|s| !s.is_empty())
+            {
+                deltas.push(StreamDelta::Text(content.to_string()));
+            }
         }
         if let Some(finish) = choice.get("finish_reason").and_then(|f| f.as_str())
             && finish == "stop"

@@ -68,6 +68,7 @@ pub enum Overlay {
 pub struct App {
     pub state: AppState,
     pub theme: Theme,
+    pub theme_before_settings: Option<Theme>,
     pub sidebar: Sidebar,
     pub conversation: Conversation,
     pub input: Input,
@@ -128,6 +129,7 @@ impl App {
         Self {
             state,
             theme,
+            theme_before_settings: None,
             sidebar: Sidebar::new(),
             conversation: Conversation::new(),
             input: Input::new(),
@@ -239,6 +241,7 @@ impl App {
             &self.layout,
             self.nerd_fonts,
             &self.sidebar.search_input,
+            self.config_show_thinking,
         );
 
         if show_stats_bar {
@@ -576,8 +579,23 @@ impl App {
                     self.open_model_popup();
                     return;
                 }
-                KeyCode::Char('t') => {
+                KeyCode::Char('p') => {
                     self.open_provider_popup();
+                    return;
+                }
+                KeyCode::Char('t') => {
+                    self.config_show_thinking = !self.config_show_thinking;
+                    let _ = self.action_tx.send(Action::SetThinking {
+                        enabled: self.config_show_thinking,
+                    });
+                    self.conversation.clear_render_cache();
+                    let label = if self.config_show_thinking {
+                        "Thinking enabled"
+                    } else {
+                        "Thinking disabled"
+                    };
+                    self.state.status_message =
+                        Some((label.to_string(), std::time::Instant::now()));
                     return;
                 }
                 KeyCode::Char('s') => {
@@ -744,6 +762,10 @@ impl App {
                 } else {
                     match key.code {
                         KeyCode::Esc => {
+                            // Restore original theme (discard preview)
+                            if let Some(original) = self.theme_before_settings.take() {
+                                self.theme = original;
+                            }
                             self.overlay = Overlay::None;
                         }
                         KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => {
@@ -754,9 +776,11 @@ impl App {
                         }
                         KeyCode::Left | KeyCode::Char('h') => {
                             panel.nav_left();
+                            self.preview_theme_from_settings();
                         }
                         KeyCode::Right | KeyCode::Char('l') => {
                             panel.nav_right();
+                            self.preview_theme_from_settings();
                         }
                         KeyCode::Enter => {
                             if panel.is_edit_yaml_action() {
@@ -767,6 +791,7 @@ impl App {
                             }
                         }
                         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            self.theme_before_settings = None;
                             self.save_settings();
                             self.overlay = Overlay::None;
                         }
@@ -1156,6 +1181,11 @@ impl App {
             KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.open_external_editor();
             }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.input.take_content();
+                self.history_index = None;
+                self.history_draft.clear();
+            }
             KeyCode::Up => {
                 if !self.input.move_up() {
                     self.history_prev();
@@ -1270,7 +1300,18 @@ impl App {
             &self.color_mode,
             &self.available_models,
         );
+        self.theme_before_settings = Some(self.theme.clone());
         self.overlay = Overlay::Settings(panel);
+    }
+
+    fn preview_theme_from_settings(&mut self) {
+        if let Overlay::Settings(ref panel) = self.overlay
+            && let Some(theme_name) = panel.get_value("theme")
+        {
+            let resolved = crate::theme::resolve_color_mode(&self.color_mode);
+            self.theme =
+                Theme::from_config(&theme_name, &self.config_themes).adapt_to_color_mode(resolved);
+        }
     }
 
     fn save_settings(&mut self) {
@@ -1302,6 +1343,9 @@ impl App {
             }
             if let Some(v) = panel.get_value("ui.show_thinking") {
                 self.config_show_thinking = v == "on";
+                let _ = self.action_tx.send(Action::SetThinking {
+                    enabled: self.config_show_thinking,
+                });
             }
             if let Some(v) = panel.get_value("ui.show_token_usage") {
                 self.config_show_token_usage = v == "on";
@@ -1466,6 +1510,9 @@ impl App {
         // Apply thinking toggle
         if let Some(thinking) = result.set_thinking {
             self.config_show_thinking = thinking;
+            let _ = self
+                .action_tx
+                .send(Action::SetThinking { enabled: thinking });
         }
 
         // Apply system prompt

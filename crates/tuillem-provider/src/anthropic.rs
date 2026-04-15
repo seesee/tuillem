@@ -51,6 +51,16 @@ impl Provider for AnthropicProvider {
         if let Some(temp) = request.temperature {
             body["temperature"] = serde_json::json!(temp);
         }
+        if request.thinking {
+            body["thinking"] = serde_json::json!({
+                "type": "enabled",
+                "budget_tokens": 10000
+            });
+            // Extended thinking requires higher max_tokens
+            if body["max_tokens"].as_u64().unwrap_or(0) < 16000 {
+                body["max_tokens"] = serde_json::json!(16000);
+            }
+        }
 
         let response = self
             .client

@@ -10,6 +10,7 @@ pub enum Action {
     CancelStream,
     RegenerateLastResponse,
     SwitchModel { provider: String, model: String },
+    SetThinking { enabled: bool },
     Search { query: String },
     ConfirmToolCall { approved: bool },
     SaveTranscript,

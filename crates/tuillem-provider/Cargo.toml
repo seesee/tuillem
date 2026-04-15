@@ -8,7 +8,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-tuillem-config = { path = "../tuillem-config", version = "0.1.2" }
+tuillem-config = { path = "../tuillem-config", version = "0.1.3" }
 tokio = { workspace = true }
 tokio-stream = "0.1"
 bytes = "1"

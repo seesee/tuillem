@@ -36,9 +36,9 @@ pub struct Conversation {
     /// Active padding lines to add at the bottom during streaming.
     /// Decreases as real content fills in. 0 = no padding.
     pub response_padding: u16,
-    /// Cache of rendered lines per message. Key is (message_id, thinking_expanded).
+    /// Cache of rendered lines per message. Key is (message_id, thinking_expanded, show_thinking).
     /// Invalidated when content_width or layout changes.
-    render_cache: HashMap<(String, bool), Vec<Line<'static>>>,
+    render_cache: HashMap<(String, bool, bool), Vec<Line<'static>>>,
     cached_width: usize,
     cached_layout: String,
 }
@@ -78,6 +78,7 @@ impl Conversation {
         layout: &str,
         _nerd_fonts: bool,
         search_query: &str,
+        show_thinking: bool,
     ) {
         let is_loose = layout == "loose";
         let margin: usize = if is_loose { 2 } else { 0 };
@@ -115,7 +116,7 @@ impl Conversation {
         // Render each message (with caching)
         for (idx, msg) in messages.iter().enumerate() {
             let thinking_expanded = self.expanded_thinking.contains(&idx);
-            let cache_key = (msg.id.clone(), thinking_expanded);
+            let cache_key = (msg.id.clone(), thinking_expanded, show_thinking);
 
             if let Some(cached) = self.render_cache.get(&cache_key) {
                 lines.extend(cached.iter().cloned());
@@ -155,9 +156,9 @@ impl Conversation {
                 )));
             }
 
-            // Thinking blocks
+            // Thinking blocks (only shown when show_thinking is enabled)
             for block in &msg.blocks {
-                if block.block_type == "thinking" {
+                if block.block_type == "thinking" && show_thinking {
                     if thinking_expanded {
                         let content = block.content.as_deref().unwrap_or("");
                         msg_lines.push(Line::from(Span::styled(
@@ -343,6 +344,14 @@ impl Conversation {
                         .fg(theme.warning)
                         .add_modifier(Modifier::BOLD),
                 )]));
+                if show_thinking {
+                    for think_line in streaming_thinking.lines() {
+                        lines.push(Line::from(Span::styled(
+                            format!("{}  {}", margin_str, think_line),
+                            theme.thinking_style(),
+                        )));
+                    }
+                }
             }
 
             if !streaming_text.is_empty() {
@@ -590,7 +599,7 @@ impl Conversation {
     pub fn prune_render_cache(&mut self, messages: &[tuillem_core::actions::MessageView]) {
         let valid_ids: HashSet<&str> = messages.iter().map(|m| m.id.as_str()).collect();
         self.render_cache
-            .retain(|(id, _), _| valid_ids.contains(id.as_str()));
+            .retain(|(id, _, _), _| valid_ids.contains(id.as_str()));
     }
 
     pub fn toggle_thinking(&mut self, message_index: usize) {
