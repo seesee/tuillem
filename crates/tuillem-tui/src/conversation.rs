@@ -165,11 +165,18 @@ impl Conversation {
                             format!("{} [thinking] (press t to collapse)", margin_str),
                             theme.thinking_style(),
                         )));
-                        for line in content.lines() {
-                            msg_lines.push(Line::from(Span::styled(
-                                format!("{}  {}", margin_str, line),
-                                theme.thinking_style(),
-                            )));
+                        let rendered = tuillem_markdown::render_markdown_streaming(
+                            content,
+                            content_width.saturating_sub(2),
+                        );
+                        let think_fg = theme.thinking_fg;
+                        for line in rendered.lines {
+                            let mut styled_spans = vec![Span::raw(format!("{}  ", margin_str))];
+                            for span in line.spans {
+                                let style = span.style.fg(think_fg);
+                                styled_spans.push(Span::styled(span.content.to_string(), style));
+                            }
+                            msg_lines.push(Line::from(styled_spans));
                         }
                     } else {
                         let preview = block
@@ -345,11 +352,19 @@ impl Conversation {
                         .add_modifier(Modifier::BOLD),
                 )]));
                 if show_thinking {
-                    for think_line in streaming_thinking.lines() {
-                        lines.push(Line::from(Span::styled(
-                            format!("{}  {}", margin_str, think_line),
-                            theme.thinking_style(),
-                        )));
+                    let rendered = tuillem_markdown::render_markdown_streaming(
+                        streaming_thinking,
+                        content_width.saturating_sub(2),
+                    );
+                    let think_fg = theme.thinking_fg;
+                    for line in rendered.lines {
+                        let mut styled_spans = vec![Span::raw(format!("{}  ", margin_str))];
+                        for span in line.spans {
+                            // Keep modifiers (bold/italic) from markdown but use thinking fg
+                            let style = span.style.fg(think_fg);
+                            styled_spans.push(Span::styled(span.content.to_string(), style));
+                        }
+                        lines.push(Line::from(styled_spans));
                     }
                 }
             }

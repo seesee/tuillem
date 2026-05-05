@@ -21,6 +21,8 @@ pub struct CommandResult {
     pub initial_message: Option<String>,
     /// Search query to populate sidebar search and trigger FTS.
     pub search_query: Option<String>,
+    /// Keep current model/provider (don't reset to defaults).
+    pub keep_model: bool,
 }
 
 impl CommandResult {
@@ -35,6 +37,7 @@ impl CommandResult {
             request_clear: false,
             initial_message: None,
             search_query: None,
+            keep_model: false,
         }
     }
 
@@ -49,6 +52,7 @@ impl CommandResult {
             request_clear: false,
             initial_message: None,
             search_query: None,
+            keep_model: false,
         }
     }
 
@@ -63,6 +67,7 @@ impl CommandResult {
             request_clear: false,
             initial_message: None,
             search_query: None,
+            keep_model: false,
         }
     }
 
@@ -77,6 +82,7 @@ impl CommandResult {
             request_clear: false,
             initial_message: None,
             search_query: None,
+            keep_model: false,
         }
     }
 }
@@ -124,6 +130,20 @@ pub fn parse_command(input: &str, prefix: &str, ctx: &CommandContext) -> Option<
                 },
                 "New conversation created",
             );
+            if !args.is_empty() {
+                r.initial_message = Some(args.to_string());
+                r.message = Some(format!("New conversation: {}", args));
+            }
+            r
+        }
+        "ct" => {
+            let mut r = CommandResult::action(
+                Action::CreateSession {
+                    title: "New Chat".to_string(),
+                },
+                "New conversation (same model/provider)",
+            );
+            r.keep_model = true;
             if !args.is_empty() {
                 r.initial_message = Some(args.to_string());
                 r.message = Some(format!("New conversation: {}", args));
@@ -411,8 +431,12 @@ pub fn render_commands_help(
             Span::styled("Rename current conversation", dim),
         ]),
         Line::from(vec![
-            Span::styled(format!("  {}new            ", p), normal),
+            Span::styled(format!("  {}new [prompt]   ", p), normal),
             Span::styled("Create new conversation", dim),
+        ]),
+        Line::from(vec![
+            Span::styled(format!("  {}ct [prompt]    ", p), normal),
+            Span::styled("Change topic (new chat, same model)", dim),
         ]),
         Line::from(vec![
             Span::styled(format!("  {}clear          ", p), normal),

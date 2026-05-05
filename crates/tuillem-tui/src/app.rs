@@ -80,6 +80,10 @@ pub struct App {
     pub available_models: Vec<(String, Vec<String>)>, // (provider_name, [model_ids])
     pub needs_redraw: bool,
     pub cancel_flag: Arc<AtomicBool>,
+    // Panel areas for mouse hit-testing (updated each draw)
+    pub sidebar_area: Rect,
+    pub conversation_area: Rect,
+    pub input_area: Rect,
     pub input_history: Vec<String>,
     pub history_index: Option<usize>, // None = not browsing history
     pub history_draft: String,        // stashed draft while browsing history
@@ -140,6 +144,9 @@ impl App {
             overlay: Overlay::None,
             available_models,
             needs_redraw: false,
+            sidebar_area: Rect::default(),
+            conversation_area: Rect::default(),
+            input_area: Rect::default(),
             cancel_flag,
             input_history: Vec::new(),
             history_index: None,
@@ -207,6 +214,16 @@ impl App {
             .constraints(v_constraints)
             .split(h_chunks[1]);
 
+        // Store panel areas for mouse hit-testing
+        self.sidebar_area = if self.sidebar_collapsed {
+            Rect::default()
+        } else {
+            h_chunks[0]
+        };
+        self.conversation_area = v_chunks[0];
+        let input_chunk_idx = if show_stats_bar { 2 } else { 1 };
+        self.input_area = v_chunks[input_chunk_idx];
+
         if !self.sidebar_collapsed {
             self.sidebar.render(
                 frame,
@@ -248,14 +265,9 @@ impl App {
             self.render_stats_bar(frame, v_chunks[1]);
         }
 
-        let input_chunk = if show_stats_bar {
-            v_chunks[2]
-        } else {
-            v_chunks[1]
-        };
         self.input.render(
             frame,
-            input_chunk,
+            self.input_area,
             &self.state.current_model,
             self.state.is_streaming,
             &self.theme,
@@ -647,6 +659,30 @@ impl App {
             _ => {}
         }
 
+        // Alt+1/2/3 direct panel focus
+        if key.modifiers.contains(KeyModifiers::ALT) {
+            match key.code {
+                KeyCode::Char('1') => {
+                    if !self.sidebar_collapsed {
+                        self.focus = Focus::Sidebar;
+                        self.update_focus_state();
+                    }
+                    return;
+                }
+                KeyCode::Char('2') => {
+                    self.focus = Focus::Conversation;
+                    self.update_focus_state();
+                    return;
+                }
+                KeyCode::Char('3') => {
+                    self.focus = Focus::Input;
+                    self.update_focus_state();
+                    return;
+                }
+                _ => {}
+            }
+        }
+
         // Escape: cancel streaming if active, otherwise return to input
         if key.code == KeyCode::Esc {
             if self.state.is_streaming {
@@ -681,14 +717,103 @@ impl App {
     }
 
     pub fn handle_mouse_event(&mut self, mouse: MouseEvent) {
+        let col = mouse.column;
+        let row = mouse.row;
+
+        // Determine which panel the mouse is over
+        let panel = if self.sidebar_area.width > 0
+            && col >= self.sidebar_area.x
+            && col < self.sidebar_area.x + self.sidebar_area.width
+            && row >= self.sidebar_area.y
+            && row < self.sidebar_area.y + self.sidebar_area.height
+        {
+            Focus::Sidebar
+        } else if col >= self.conversation_area.x
+            && col < self.conversation_area.x + self.conversation_area.width
+            && row >= self.conversation_area.y
+            && row < self.conversation_area.y + self.conversation_area.height
+        {
+            Focus::Conversation
+        } else if col >= self.input_area.x
+            && col < self.input_area.x + self.input_area.width
+            && row >= self.input_area.y
+            && row < self.input_area.y + self.input_area.height
+        {
+            Focus::Input
+        } else {
+            return;
+        };
+
         match mouse.kind {
-            MouseEventKind::ScrollUp => {
-                self.conversation.scroll_up(3);
+            MouseEventKind::Down(_) => {
+                if self.focus != panel {
+                    self.focus = panel;
+                    self.update_focus_state();
+                }
+                // Click to select a conversation in the sidebar
+                if panel == Focus::Sidebar {
+                    self.sidebar_click_select(row);
+                }
             }
-            MouseEventKind::ScrollDown => {
-                self.conversation.scroll_down(3);
-            }
+            MouseEventKind::ScrollUp => match panel {
+                Focus::Sidebar => {
+                    self.sidebar.move_up(1);
+                    self.preview_selected_session();
+                }
+                _ => self.conversation.scroll_up(3),
+            },
+            MouseEventKind::ScrollDown => match panel {
+                Focus::Sidebar => {
+                    let count = self.state.sessions.len();
+                    self.sidebar.move_down(count, 1);
+                    self.preview_selected_session();
+                }
+                _ => self.conversation.scroll_down(3),
+            },
             _ => {}
+        }
+    }
+
+    fn sidebar_click_select(&mut self, row: u16) {
+        // The list area starts at sidebar_area.y + 1 (border) + 2 (search + blank)
+        let list_start_y = self.sidebar_area.y + 3;
+        if row < list_start_y {
+            return;
+        }
+        let clicked_line = (row - list_start_y) as usize;
+
+        let filtered = self.sidebar.filtered_sessions(&self.state.sessions);
+        let is_loose = self.layout == "loose";
+        let item_height: usize = if is_loose { 3 } else { 2 }; // title + preview [+ blank]
+        let today = chrono::Local::now().date_naive();
+        let mut current_line: usize = 0;
+        let mut current_group: Option<String> = None;
+
+        for (idx, session) in filtered.iter().enumerate().skip(self.sidebar.scroll_offset) {
+            let group =
+                crate::sidebar::date_group_label(&session.updated_at, today, &self.date_format);
+            if current_group.as_ref() != Some(&group) {
+                if current_group.is_some() && is_loose {
+                    current_line += 1; // blank separator before new group
+                }
+                current_line += 1; // group header
+                current_group = Some(group);
+            }
+
+            // Session occupies item_height lines
+            if clicked_line >= current_line && clicked_line < current_line + item_height {
+                self.sidebar.selected = idx;
+                self.sidebar.ensure_visible();
+                let session_id = session.id.clone();
+                let _ = self.action_tx.send(Action::SelectSession {
+                    id: session_id.clone(),
+                });
+                self.state.active_session_id = Some(session_id);
+                self.focus = Focus::Input;
+                self.update_focus_state();
+                return;
+            }
+            current_line += item_height;
         }
     }
 
@@ -1178,13 +1303,28 @@ impl App {
                     }
                 }
             }
-            KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('x') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.open_external_editor();
+            }
+            KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.input.move_end();
             }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.input.take_content();
                 self.history_index = None;
                 self.history_draft.clear();
+            }
+            KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.input.move_home();
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.input.delete_char();
+            }
+            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.input.move_right();
+            }
+            KeyCode::Char('w') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.input.delete_word_backward();
             }
             KeyCode::Up => {
                 if !self.input.move_up() {
@@ -1542,18 +1682,20 @@ impl App {
 
         // Send action to coordinator
         if let Some(action) = result.action {
-            // For CreateSession, also reset to default model
+            // For CreateSession, reset to default model unless keep_model is set
             let is_new_session = matches!(action, Action::CreateSession { .. });
             if let Err(e) = self.action_tx.send(action) {
                 warn!("Failed to send command action: {e}");
                 self.state.error = Some(format!("Internal error: coordinator disconnected ({e})"));
                 return;
             }
-            if is_new_session && !self.default_provider.is_empty() {
+            if is_new_session && !result.keep_model && !self.default_provider.is_empty() {
                 let _ = self.action_tx.send(Action::SwitchModel {
                     provider: self.default_provider.clone(),
                     model: self.default_model.clone(),
                 });
+            }
+            if is_new_session {
                 self.focus = Focus::Input;
                 self.update_focus_state();
             }
@@ -1606,19 +1748,17 @@ impl App {
         };
 
         // Extract fenced code blocks
-        let mut blocks: Vec<String> = Vec::new();
+        let mut code_blocks: Vec<String> = Vec::new();
         let mut in_block = false;
         let mut current_block = String::new();
 
         for line in content.lines() {
             if line.trim_start().starts_with("```") {
                 if in_block {
-                    // End of block
-                    blocks.push(current_block.clone());
+                    code_blocks.push(current_block.clone());
                     current_block.clear();
                     in_block = false;
                 } else {
-                    // Start of block
                     in_block = true;
                     current_block.clear();
                 }
@@ -1630,34 +1770,15 @@ impl App {
             }
         }
 
-        if blocks.is_empty() {
-            // No code blocks — copy full response
-            self.copy_last_response();
-            return;
-        }
+        // Build selection list: full response first, then code blocks
+        let mut items = vec!["Full response".to_string()];
+        let mut blocks = vec![content.to_string()];
 
-        if blocks.len() == 1 {
-            // Single block — copy directly
-            if let Ok(mut clipboard) = arboard::Clipboard::new()
-                && clipboard.set_text(&blocks[0]).is_ok()
-            {
-                self.state.status_message = Some((
-                    "Copied code block to clipboard".to_string(),
-                    std::time::Instant::now(),
-                ));
-            }
-            return;
+        for (i, b) in code_blocks.iter().enumerate() {
+            let preview: String = b.lines().next().unwrap_or("").chars().take(40).collect();
+            items.push(format!("Code block {} — {}", i + 1, preview));
+            blocks.push(b.clone());
         }
-
-        // Multiple blocks — show selection popup
-        let items: Vec<String> = blocks
-            .iter()
-            .enumerate()
-            .map(|(i, b)| {
-                let preview: String = b.lines().next().unwrap_or("").chars().take(40).collect();
-                format!("Block {} — {}", i + 1, preview)
-            })
-            .collect();
 
         self.overlay = Overlay::CodeBlockSelect {
             items,

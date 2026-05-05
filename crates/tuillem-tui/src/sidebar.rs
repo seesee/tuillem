@@ -258,7 +258,7 @@ impl Sidebar {
                     ));
                 }
 
-                let preview_text = session.preview.as_deref().unwrap_or("").replace('\n', " ");
+                let preview_text = strip_markdown(session.preview.as_deref().unwrap_or(""));
                 let max_w = inner.width.saturating_sub(4) as usize;
                 let preview_truncated =
                     tuillem_markdown::width::truncate_with_ellipsis(&preview_text, max_w);
@@ -380,7 +380,7 @@ impl Default for Sidebar {
 
 /// Determine the date group label for a session based on its updated_at timestamp.
 /// Recent dates use friendly labels; older dates use the configured format.
-fn date_group_label(updated_at: &str, today: NaiveDate, date_format: &str) -> String {
+pub fn date_group_label(updated_at: &str, today: NaiveDate, date_format: &str) -> String {
     let date = DateTime::parse_from_rfc3339(updated_at)
         .map(|dt| dt.with_timezone(&Local).date_naive())
         .or_else(|_| {
@@ -406,4 +406,73 @@ fn date_group_label(updated_at: &str, today: NaiveDate, date_format: &str) -> St
         2..=6 => date.format("%A").to_string(), // e.g. "Monday"
         _ => date.format(chrono_fmt).to_string(),
     }
+}
+
+/// Strip common markdown syntax for a clean single-line preview.
+fn strip_markdown(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let collapsed = text.replace('\n', " ");
+    let mut chars = collapsed.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '*' | '_' => {
+                while chars.peek() == Some(&c) {
+                    chars.next();
+                }
+            }
+            '`' => {
+                while chars.peek() == Some(&'`') {
+                    chars.next();
+                }
+            }
+            '#' if out.is_empty() || out.ends_with(' ') => {
+                while chars.peek() == Some(&'#') {
+                    chars.next();
+                }
+                if chars.peek() == Some(&' ') {
+                    chars.next();
+                }
+            }
+            '~' => {
+                while chars.peek() == Some(&'~') {
+                    chars.next();
+                }
+            }
+            '[' => {
+                // [text](url) → text
+                let mut link_text = String::new();
+                for lc in chars.by_ref() {
+                    if lc == ']' {
+                        break;
+                    }
+                    link_text.push(lc);
+                }
+                out.push_str(&link_text);
+                if chars.peek() == Some(&'(') {
+                    chars.next();
+                    for lc in chars.by_ref() {
+                        if lc == ')' {
+                            break;
+                        }
+                    }
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    // Collapse multiple spaces
+    let mut result = String::with_capacity(out.len());
+    let mut prev_space = false;
+    for c in out.chars() {
+        if c == ' ' {
+            if !prev_space {
+                result.push(' ');
+            }
+            prev_space = true;
+        } else {
+            result.push(c);
+            prev_space = false;
+        }
+    }
+    result.trim().to_string()
 }

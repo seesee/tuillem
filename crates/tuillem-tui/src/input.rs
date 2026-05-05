@@ -50,7 +50,7 @@ impl Input {
                 Style::default().fg(theme.thinking_fg),
             ),
             Span::styled(
-                " Enter:send | Alt-Ent:newline | C-e:editor | C-k:commands | C-h:help ",
+                " Enter:send | Alt-Ent:newline | C-x:editor | C-k:commands | C-h:help ",
                 Style::default().fg(theme.thinking_fg),
             ),
         ]);
@@ -131,6 +131,20 @@ impl Input {
                 self.cursor_pos = pos;
             }
         }
+    }
+
+    pub fn delete_word_backward(&mut self) {
+        if self.cursor_pos == 0 {
+            return;
+        }
+        let before = &self.content[..self.cursor_pos];
+        // Skip trailing whitespace, then delete back to next whitespace
+        let end = before.trim_end().len();
+        let start = before[..end]
+            .rfind(|c: char| c.is_whitespace())
+            .map_or(0, |i| i + 1);
+        self.content.drain(start..self.cursor_pos);
+        self.cursor_pos = start;
     }
 
     pub fn move_left(&mut self) {
